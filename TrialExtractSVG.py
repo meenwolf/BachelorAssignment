@@ -84,3 +84,6 @@ vars = m.addVars(hallways.keys(), obj=hallways, vtype=GRB.BINARY, name='x')
 
 # Symmetric direction: use dict.update to alias variable with new key
 vars.update({(j,i):vars[i,j] for i,j in vars.keys()})
+
+# Still need a variable Y_v for all nodes, to ensure even degree.
+# Then add constaints, but not yet the connectivity constraint.
