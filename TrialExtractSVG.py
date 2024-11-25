@@ -80,10 +80,17 @@ pprint(hallways)
 m = Model()
 
 # Variables: the hallway connecting crossing i and j in the tour?
-vars = m.addVars(hallways.keys(), obj=hallways, vtype=GRB.BINARY, name='x')
-
+varshall = m.addVars(hallways.keys(),vtype=GRB.BINARY, name='x')
+for v in m.getVars():
+    print(f"v name: {v.VarName} with obj value: {v.X:g} ")
 # Symmetric direction: use dict.update to alias variable with new key
-vars.update({(j,i):vars[i,j] for i,j in vars.keys()})
+varshall.update({(j,i):varshall[i,j] for i,j in varshall.keys()})
 
-# Still need a variable Y_v for all nodes, to ensure even degree.
+# Add variable to help ensure even degree
+for i in range(nextnode):
+    m.addVar(vtype=GRB.INTEGER, name="y"+str(i))
+m.setObjective(sum([hallways[e]*varshall[e] for e in hallways.keys()]),sense=GRB.MAXIMIZE)
 # Then add constaints, but not yet the connectivity constraint.
+m.optimize()
+for v in m.getVars():
+    print(f"v name: {v.VarName} with obj value: {v.X:g} ")
