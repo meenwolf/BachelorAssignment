@@ -1,9 +1,11 @@
 import os
 
 from networkx.classes import neighbors
-from svgpathtools import svg2paths, svg2paths2, wsvg
+from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
+import xml.etree.ElementTree as ET
+
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
 PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
@@ -41,7 +43,10 @@ for path, attr in zip(paths, attributes):
 specialPaths={"CR":{3:{}}}
 hallways={}
 coordinateToNode={"CR":{3:{}}}
+nodeToCoordinate={"CR":{3:{}}}
 nextnode=0
+coordinateToNode['CR']['minvnum']=nextnode
+coordinateToNode['CR'][3]['minvnum']=nextnode
 for path, attr in zip(paths, attributes):
     for i, line in enumerate(path):
         start = line.start
@@ -56,6 +61,7 @@ for path, attr in zip(paths, attributes):
 
         if not start in coordinateToNode["CR"][3]:
             coordinateToNode["CR"][3][start]=nextnode
+            nodeToCoordinate["CR"][3][nextnode]=start
             snode=nextnode
             print(f" snode before increment: {snode}")
             nextnode+=1
@@ -65,6 +71,7 @@ for path, attr in zip(paths, attributes):
 
         if not end in coordinateToNode["CR"][3]:
             coordinateToNode["CR"][3][end]=nextnode
+            nodeToCoordinate["CR"][3][nextnode]=end
             enode=nextnode
             print(f" enode before increment: {enode}")
             nextnode+=1
@@ -72,7 +79,11 @@ for path, attr in zip(paths, attributes):
         else:
             enode=coordinateToNode["CR"][3][end]
         hallways[(snode, enode)] = edgeweight
+coordinateToNode['CR']['maxvnum']= nextnode-1
+nodeToCoordinate['CR']['maxvnum']= nextnode-1
 
+coordinateToNode['CR'][3]['maxvnum']= nextnode-1
+nodeToCoordinate['CR'][3]['maxvnum']= nextnode-1
 
 pprint(specialPaths)
 print("And all the original hallways are:")
@@ -122,5 +133,55 @@ for i in range(nextnode):
 m.optimize()
 #Retreive final values for the varshall: hallway variables and print them
 solution = m.getAttr('X', varshall)
-pprint(solution)
+# pprint(solution)
+used_edges=[]
+for key, value in solution.items():
+    if value ==1:
+        if (key[0], key[1]) not in used_edges:
+            if (key[1],key[0]) not in used_edges:
+                used_edges.append(key)
+        elif key not in used_edges:
+            used_edges.append(key)
 
+# Get the building and floor for which the vertex belongs to
+def GetDrawingInfo(vnumber):
+    for building, buildinginfo in coordinateToNode.items():
+        if buildinginfo['minvnum']<= vnumber:
+            if buildinginfo['maxvnum']>=vnumber:
+                for floor, floorinfo in buildinginfo.items():
+                    if floor not in ['minvnum','maxvnum']:
+                        if floorinfo['minvnum']<=vnumber:
+                            if floorinfo['maxvnum']>=vnumber:
+                                return (building, floor)
+
+#Translate vertex pairs back to coordinates:
+def GetCoordinatesPair(vtuple):
+    print(f"we get coordinates for{vtuple}")
+    b0, f0 = GetDrawingInfo(vtuple[0])
+    b1, f1 = GetDrawingInfo(vtuple[1])
+    print(f"we have b0:{b0}, f0:{f0}, b1:{b1}, f1:{f1}")
+    return (nodeToCoordinate[b0][f0][vtuple[0]], nodeToCoordinate[b1][f1][vtuple[1]])
+
+testPathDrawing= PATH+("\\Eerste aantekeningen")
+testFigurePath = testPathDrawing+"\\1412.3ForTestPath.svg"
+newFigurePath = testPathDrawing+"\\1412.3TestPath.svg"
+
+tree = ET.parse(newFigurePath)
+root = tree.getroot()
+print(root)
+
+
+ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+for edge in used_edges:
+    if vdum not in edge:
+        startco, endco= GetCoordinatesPair(edge)
+        new_path_element = ET.Element("path", attrib={
+            "d": Path(Line(start=startco, end=endco)).d(),
+            "stroke": "purple",
+            "fill": "none",
+            "stroke-width": "1"
+        })
+        root.append(new_path_element)
+
+tree.write(newFigurePath)
+print(f"Updated SVG saved to {newFigurePath}")
