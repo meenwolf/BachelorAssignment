@@ -1,4 +1,6 @@
 import os
+
+from networkx.classes import neighbors
 from svgpathtools import svg2paths, svg2paths2, wsvg
 from pprint import pprint
 from gurobipy import *
@@ -73,8 +75,22 @@ for path, attr in zip(paths, attributes):
 
 
 pprint(specialPaths)
-print("And all the hallways are:")
+print("And all the original hallways are:")
 pprint(hallways)
+
+#Add hallways to the dummy vertex:
+vdum= nextnode
+nextnode += 1
+
+for i in range(nextnode):
+    hallways[(vdum, i)]=0
+# define a dictionary where each vertex maps to a set of its neighbours
+neighbours={i:{vdum} for i in range(vdum)}
+neighbours[vdum]=set(range(vdum))
+for v1,v2 in hallways.keys():
+    print(f"v1:{v1}, v2:{v2}")
+    neighbours[v1].add(v2)
+    neighbours[v2].add(v1)
 
 # now try out the gurobi libary:
 m = Model()
@@ -87,10 +103,24 @@ for v in m.getVars():
 varshall.update({(j,i):varshall[i,j] for i,j in varshall.keys()})
 
 # Add variable to help ensure even degree
-for i in range(nextnode):
-    m.addVar(vtype=GRB.INTEGER, name="y"+str(i))
+varsdegree=m.addVars(range(vdum),vtype=GRB.INTEGER, name="y")
+
+#Set the objective function for the model
 m.setObjective(sum([hallways[e]*varshall[e] for e in hallways.keys()]),sense=GRB.MAXIMIZE)
 # Then add constaints, but not yet the connectivity constraint.
+
+#Add the even degree constraint for vdum:
+
+for i in range(nextnode):
+    if i == vdum:
+        m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2, name='evenDegreeVDUM')
+    else:
+        print(f'i: {i} when vdum: {vdum}, and nextnode: {nextnode}')
+        m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2*varsdegree[i], name=f'evenDegreeVertex{i}')
+
+#Call optimize to get the solution
 m.optimize()
-for v in m.getVars():
-    print(f"v name: {v.VarName} with obj value: {v.X:g} ")
+#Retreive final values for the varshall: hallway variables and print them
+solution = m.getAttr('X', varshall)
+pprint(solution)
+
