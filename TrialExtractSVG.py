@@ -5,17 +5,18 @@ from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
 import xml.etree.ElementTree as ET
+import numpy as np
 
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
 PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
-PATH_drawings= PATH+"\\FloorplanAnnotated"
+PATH_drawings= PATH+"\\Eerste aantekeningen"
 #Get the paths and attributes of the third floor of Carré
 
 #IDEA: make a list of nodes, for all of the path starts and ends. After we also know the scale and made the
 #Edges have the correct real world weights, we can start at merging nodes in one, if they are closer than X meters in real life.
 
-paths, attributes = svg2paths(PATH_drawings+"\\CARRE 1412\\withPNG1412.3.svg")
+paths, attributes = svg2paths(PATH_drawings+"\\CARRE 1412\\paths1412.3.svg")
 
 for path, attr in zip(paths, attributes):
     if "inkscape:label" in attr.keys():
@@ -25,15 +26,15 @@ for path, attr in zip(paths, attributes):
             break
 
 print(f"length for one meter is {lengthForOneMeter}")
-
-for path, attr in zip(paths, attributes):
-    if "inkscape:label" in attr.keys():
-        print(f"inkscape:label is in attributes: {attr['inkscape:label']}")
-        print(f"and the path is: {path}")
-        start= path.start
-        end= path.end
-        edgeweight= abs(start-end)
-        print(f"edge has length: {edgeweight}")
+#
+# for path, attr in zip(paths, attributes):
+#     if "inkscape:label" in attr.keys():
+#         if 'path' not in attr['inkscape:label']:
+#             start= path.start
+#             end= path.end
+#             edgeweight= abs(start-end)
+#         else:
+#             print(f"We renamed this path to {attr['inkscape:label']}, because once a name\n was given, but it was wrong and forgot about the orignal path number")
 
 # Gurobi uses dictionaries where the keys are pairs of (start, end) having a value
 # of the distance between them. To keep the information about the labels, I will create
@@ -49,8 +50,8 @@ coordinateToNode['CR']['minvnum']=nextnode
 coordinateToNode['CR'][3]['minvnum']=nextnode
 for path, attr in zip(paths, attributes):
     for i, line in enumerate(path):
-        start = line.start
-        end = line.end
+        start = np.round(line.start,0)
+        end = np.round(line.end,0)
         edgeweight = abs(start - end)/lengthForOneMeter #edgeweight in meters
         if "inkscape:label" in attr.keys():
             if 'mtr' in attr['inkscape:label']:
@@ -63,9 +64,7 @@ for path, attr in zip(paths, attributes):
             coordinateToNode["CR"][3][start]=nextnode
             nodeToCoordinate["CR"][3][nextnode]=start
             snode=nextnode
-            print(f" snode before increment: {snode}")
             nextnode+=1
-            print(f" snode after increment: {snode}")
         else:
             snode=coordinateToNode["CR"][3][start]
 
@@ -73,9 +72,7 @@ for path, attr in zip(paths, attributes):
             coordinateToNode["CR"][3][end]=nextnode
             nodeToCoordinate["CR"][3][nextnode]=end
             enode=nextnode
-            print(f" enode before increment: {enode}")
             nextnode+=1
-            print(f" enode after increment: {enode}")
         else:
             enode=coordinateToNode["CR"][3][end]
         hallways[(snode, enode)] = edgeweight
@@ -84,11 +81,12 @@ nodeToCoordinate['CR']['maxvnum']= nextnode-1
 
 coordinateToNode['CR'][3]['maxvnum']= nextnode-1
 nodeToCoordinate['CR'][3]['maxvnum']= nextnode-1
-
+print(f"the special paths are:")
 pprint(specialPaths)
 print("And all the original hallways are:")
 pprint(hallways)
-
+print(f"we had a total of {nextnode} crossings for carre 3rd floor. Does this match reality?\n In"
+      f"other words, did snapping work correctly?")
 #Add hallways to the dummy vertex:
 vdum= nextnode
 nextnode += 1
@@ -99,7 +97,6 @@ for i in range(nextnode):
 neighbours={i:{vdum} for i in range(vdum)}
 neighbours[vdum]=set(range(vdum))
 for v1,v2 in hallways.keys():
-    print(f"v1:{v1}, v2:{v2}")
     neighbours[v1].add(v2)
     neighbours[v2].add(v1)
 
@@ -126,7 +123,6 @@ for i in range(nextnode):
     if i == vdum:
         m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2, name='evenDegreeVDUM')
     else:
-        print(f'i: {i} when vdum: {vdum}, and nextnode: {nextnode}')
         m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2*varsdegree[i], name=f'evenDegreeVertex{i}')
 
 #Call optimize to get the solution
@@ -156,19 +152,20 @@ def GetDrawingInfo(vnumber):
 
 #Translate vertex pairs back to coordinates:
 def GetCoordinatesPair(vtuple):
-    print(f"we get coordinates for{vtuple}")
+    # print(f"we get coordinates for{vtuple}")
     b0, f0 = GetDrawingInfo(vtuple[0])
     b1, f1 = GetDrawingInfo(vtuple[1])
-    print(f"we have b0:{b0}, f0:{f0}, b1:{b1}, f1:{f1}")
-    return (nodeToCoordinate[b0][f0][vtuple[0]], nodeToCoordinate[b1][f1][vtuple[1]])
+    # print(f"we have b0:{b0}, f0:{f0}, b1:{b1}, f1:{f1}")
+    return (nodeToCoordinate[b0][f0][np.round(vtuple[0],0)], nodeToCoordinate[b1][f1][np.round(vtuple[1],0)])
 
-testPathDrawing= PATH+("\\Eerste aantekeningen")
-testFigurePath = testPathDrawing+"\\1412.3ForTestPath.svg"
-newFigurePath = testPathDrawing+"\\1412.3TestPath.svg"
+testPath= PATH+("\\Eerste aantekeningen\\CARRE 1412")
+newFigurePath = testPath+"\\empty1412.3.svg"
 
 tree = ET.parse(newFigurePath)
+tree.write(testPath+"\\backupempty1412.3.svg")
+
 root = tree.getroot()
-print(root)
+print(f"the root of the empty svg file with only the floorplan image: {root}")
 
 
 ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
@@ -179,9 +176,12 @@ for edge in used_edges:
             "d": Path(Line(start=startco, end=endco)).d(),
             "stroke": "purple",
             "fill": "none",
-            "stroke-width": "1"
+            "stroke-width": "2"
         })
         root.append(new_path_element)
 
-tree.write(newFigurePath)
-print(f"Updated SVG saved to {newFigurePath}")
+tree.write(testPath+"\\testresults1412.3.svg")
+print(f"Result is in newly created file{testPath+'\\testresults1412.3.svg'}")
+pprint(f"We have for  {nextnode} nodes")
+#WE MUST HAVE 63 excluding or 65 nodes including the scale
+print(np.sort_complex([coordinate for coordinate in coordinateToNode['CR'][3].keys() if coordinate not in ['minvnum','maxvnum']]))
