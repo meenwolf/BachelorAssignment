@@ -50,8 +50,8 @@ coordinateToNode['CR']['minvnum']=nextnode
 coordinateToNode['CR'][3]['minvnum']=nextnode
 for path, attr in zip(paths, attributes):
     for i, line in enumerate(path):
-        start = np.round(line.start,0)
-        end = np.round(line.end,0)
+        start = np.round(line.start,3)
+        end = np.round(line.end,3)
         edgeweight = abs(start - end)/lengthForOneMeter #edgeweight in meters
         if "inkscape:label" in attr.keys():
             if 'mtr' in attr['inkscape:label']:
@@ -156,7 +156,7 @@ def GetCoordinatesPair(vtuple):
     b0, f0 = GetDrawingInfo(vtuple[0])
     b1, f1 = GetDrawingInfo(vtuple[1])
     # print(f"we have b0:{b0}, f0:{f0}, b1:{b1}, f1:{f1}")
-    return (nodeToCoordinate[b0][f0][np.round(vtuple[0],0)], nodeToCoordinate[b1][f1][np.round(vtuple[1],0)])
+    return (nodeToCoordinate[b0][f0][np.round(vtuple[0],3)], nodeToCoordinate[b1][f1][np.round(vtuple[1],3)])
 
 testPath= PATH+("\\Eerste aantekeningen\\CARRE 1412")
 newFigurePath = testPath+"\\empty1412.3.svg"
@@ -182,6 +182,6 @@ for edge in used_edges:
 
 tree.write(testPath+"\\testresults1412.3.svg")
 print(f"Result is in newly created file{testPath+'\\testresults1412.3.svg'}")
-pprint(f"We have for  {nextnode} nodes")
+pprint(f"We have  {vdum} nodes without the dummy vertex")
 #WE MUST HAVE 63 excluding or 65 nodes including the scale
 print(np.sort_complex([coordinate for coordinate in coordinateToNode['CR'][3].keys() if coordinate not in ['minvnum','maxvnum']]))
