@@ -114,36 +114,38 @@ for v1,v2 in hallways.keys():
 print(f"the neighbourhoods are: {neighbours}")
 
 # now try out the gurobi libary:
-m = Model()
 
-# Variables: the hallway connecting crossing i and j in the tour?
-varshall = m.addVars(hallways.keys(),vtype=GRB.BINARY, name='x')
-for v in m.getVars():
-    print(f"v name: {v.VarName} with obj value: {v.X:g} ")
-# Symmetric direction: use dict.update to alias variable with new key
-varshall.update({(j,i):varshall[i,j] for i,j in varshall.keys()})
+def runModel(halls, nvdum):
+    m = Model()
 
-# Add variable to help ensure even degree
-varsdegree=m.addVars(range(vdum),vtype=GRB.INTEGER, name="y")
+    # Variables: the hallway connecting crossing i and j in the tour?
+    varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
+    for v in m.getVars():
+        print(f"v name: {v.VarName} with obj value: {v.X:g} ")
+    # Symmetric direction: use dict.update to alias variable with new key
+    varssol.update({(j, i): varssol[i, j] for i, j in varssol.keys()})
 
-#Set the objective function for the model
-m.setObjective(sum([hallways[e]*varshall[e] for e in hallways.keys()]),sense=GRB.MAXIMIZE)
-# Then add constaints, but not yet the connectivity constraint.
+    # Add variable to help ensure even degree
+    varsaux = m.addVars(range(nvdum), vtype=GRB.INTEGER, name="y")
 
-#Add the even degree constraint for vdum=2:
+    # Set the objective function for the model
+    m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
+    # Then add constaints, but not yet the connectivity constraint.
 
-for i in range(nextnode):
-    if i == vdum:
-        m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2, name='evenDegreeVDUM')
-    else:
-        m.addConstr(sum([varshall[(i,e)] for e in neighbours[i]])==2*varsdegree[i], name=f'evenDegreeVertex{i}')
-#Call optimize to get the solution
-m.optimize()
+    # Add the even degree constraint for dummyvetex nvdum=2:
+    m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
 
+    for i in range(nvdum):
+        m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
+                        name=f'evenDegreeVertex{i}')
+    # Call optimize to get the solution
+    m.optimize()
+    return m, varssol, varsaux
+model, varshall, varsdegree = runModel(hallways, vdum)
 #Retreive final values for the varshall: hallway variables and print them
 
-def getEdgesResult(model):
-    sol = m.getAttr('X', varshall)
+def getEdgesResult(model, varssol):
+    sol = model.getAttr('X', varssol)
     edges = set()
     for key, value in sol.items():
         if value >= 0.5:
@@ -151,13 +153,12 @@ def getEdgesResult(model):
                 edges.add(key)
     return edges
 
-used_edges= getEdgesResult(m)
+used_edges= getEdgesResult(model, varshall)
 print("The used edges in the solution are:")
 pprint(used_edges)
 
 def getBuildingFloor(vnum):
    return nodeToCoordinate[vnum]['Building'], nodeToCoordinate[vnum]['Floor']
-
 
 #Translate vertex pairs back to coordinates:
 
@@ -186,6 +187,6 @@ for edge in used_edges:
         })
         root.append(new_path_element)
 
-tree.write(testPath+"\\longestCyclesWithVdumDisconnected1412.3.svg")
-print(f"New result is in newly created file{testPath+'\\longestCyclesWithVdumDisconnected1412.3.svg'}")
+tree.write(testPath+"\\longestCyclesWithVdumDisconnectedModelFunc1412.3.svg")
+print(f"New result is in newly created file{testPath+'\\longestCyclesWithVdumDisconnectedModelFunc1412.3.svg'}")
 pprint(f"We have  {vdum} nodes without the dummy vertex")
