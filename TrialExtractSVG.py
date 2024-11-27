@@ -43,11 +43,20 @@ print(f"length for one meter is {lengthForOneMeter}")
 
 specialPaths={"CR":{3:{}}}
 hallways={}
+
 coordinateToNode={"CR":{3:{}}}
 nodeToCoordinate={"CR":{3:{}}}
+newNodeToCoordinate={}
+vertexInfo={}
 nextnode=0
 coordinateToNode['CR']['minvnum']=nextnode
 coordinateToNode['CR'][3]['minvnum']=nextnode
+def getCoordinatenew(vnum):
+    for key, value in newNodeToCoordinate.items():
+        if value['Location']:
+            break
+    return
+
 for path, attr in zip(paths, attributes):
     for i, line in enumerate(path):
         start = np.round(line.start,3)
@@ -63,6 +72,7 @@ for path, attr in zip(paths, attributes):
         if not start in coordinateToNode["CR"][3]:
             coordinateToNode["CR"][3][start]=nextnode
             nodeToCoordinate["CR"][3][nextnode]=start
+            newNodeToCoordinate[nextnode]={'Building': "CARRE 1412", 'Floor': 3, 'Location':start}
             snode=nextnode
             nextnode+=1
         else:
@@ -87,6 +97,8 @@ print("And all the original hallways are:")
 pprint(hallways)
 print(f"we had a total of {nextnode} crossings for carre 3rd floor. Does this match reality?\n In"
       f"other words, did snapping work correctly?")
+
+
 #Add hallways to the dummy vertex:
 vdum= nextnode
 nextnode += 1
@@ -117,7 +129,7 @@ varsdegree=m.addVars(range(vdum),vtype=GRB.INTEGER, name="y")
 m.setObjective(sum([hallways[e]*varshall[e] for e in hallways.keys()]),sense=GRB.MAXIMIZE)
 # Then add constaints, but not yet the connectivity constraint.
 
-#Add the even degree constraint for vdum:
+#Add the even degree constraint for vdum=2:
 
 for i in range(nextnode):
     if i == vdum:
@@ -130,14 +142,11 @@ m.optimize()
 #Retreive final values for the varshall: hallway variables and print them
 solution = m.getAttr('X', varshall)
 # pprint(solution)
-used_edges=[]
+used_edges=set()
 for key, value in solution.items():
-    if value ==1:
-        if (key[0], key[1]) not in used_edges:
-            if (key[1],key[0]) not in used_edges:
-                used_edges.append(key)
-        elif key not in used_edges:
-            used_edges.append(key)
+    if value >= 0.5:
+        if key[0] < key[1]:
+            used_edges.add(key)
 
 # Get the building and floor for which the vertex belongs to
 def GetDrawingInfo(vnumber):
