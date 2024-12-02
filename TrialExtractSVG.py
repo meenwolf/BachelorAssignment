@@ -6,6 +6,10 @@ from pprint import pprint
 from gurobipy import *
 import xml.etree.ElementTree as ET
 import numpy as np
+import logging
+from collections import defaultdict
+from itertools import combinations
+
 
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -114,6 +118,77 @@ for v1,v2 in hallways.keys():
 print(f"the neighbourhoods are: {neighbours}")
 
 # now try out the gurobi libary:
+#I copied the shortest subtour function since it is used in TSPCallBAck, but I will change it to longest, and rename it properly
+def longest_subtour(edges):
+    """Given a list of edges, return the shortest subtour (as a list of nodes)
+    found by following those edges. It is assumed there is exactly one 'in'
+    edge and one 'out' edge for every node represented in the edge list."""
+
+    # Create a mapping from each node to its neighbours
+    node_neighbors = defaultdict(list)
+    for i, j in edges:
+        node_neighbors[i].append(j)
+    assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())
+
+    # Follow edges to find cycles. Each time a new cycle is found, keep track
+    # of the shortest cycle found so far and restart from an unvisited node.
+    unvisited = set(node_neighbors)
+    longest = None
+    while unvisited:
+        cycle = []
+        neighbors = list(unvisited)
+        while neighbors:
+            current = neighbors.pop()
+            cycle.append(current)
+            unvisited.remove(current)
+            neighbors = [j for j in node_neighbors[current] if j in unvisited]
+        if longest is None or len(longest) < len(cycle):
+            longest = cycle
+
+    assert longest is not None
+    return longest
+
+# I literally copied this TSPCallBack class from :https://docs.gurobi.com/projects/examples/en/current/examples/python/tsp.html#subsubsectiontsp-py
+#To see if it works. I have constructed my own subtour elimination constraint, but I want to see what this does first.
+# I can start to play around and understand the structure, and adjust the thing where needed to fit my problem
+class TSPCallback:
+    """Callback class implementing lazy constraints for the TSP.  At MIPSOL
+    callbacks, solutions are checked for subtours and subtour elimination
+    constraints are added if needed."""
+
+    def __init__(self, nodes, x):
+        self.nodes = nodes
+        self.x = x
+
+    def __call__(self, model, where):
+        """Callback entry point: call lazy constraints routine when new
+        solutions are found. Stop the optimization if there is an exception in
+        user code."""
+        if where == GRB.Callback.MIPSOL:
+            try:
+                self.eliminate_subtours(model)
+            except Exception:
+                logging.exception("Exception occurred in MIPSOL callback")
+                model.terminate()
+
+    def eliminate_subtours(self, model):
+        """Extract the current solution, check for subtours, and formulate lazy
+        constraints to cut off the current solution if subtours are found.
+        Assumes we are at MIPSOL."""
+        values = model.cbGetSolution(self.x)
+        edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
+        tour = longest_subtour(edges)
+        # if len(tour) < len(self.nodes):
+        #     # add subtour elimination constraint for every pair of cities in tour
+        #     nnodes=len(tour)
+        #     try:
+        #         model.cbLazy(
+        #             quicksum([self.x[(tour[i], tour[i+1])] for i in range(nnodes-1)])
+        #             <= len(tour) - 1
+        #         )
+        #     except:
+        #         print(f"exception: tour is:{tour}\n edges:{edges}\nself.x:{self.x}\n connection in x:{(tour[0],tour[-1])in self.x}")
+
 
 def runModel(halls, nvdum):
     m = Model()
@@ -139,9 +214,11 @@ def runModel(halls, nvdum):
         m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
     # Call optimize to get the solution
-    m.optimize()
+    m.Params.LazyConstraints = 1
+    cb = TSPCallback(range(nextnode), varssol)
+    m.optimize(cb)
+    # m.optimize()
     return m, varssol, varsaux
-model, varshall, varsdegree = runModel(hallways, vdum)
 #Retreive final values for the varshall: hallway variables and print them
 
 def getEdgesResult(model, varssol):
@@ -152,6 +229,8 @@ def getEdgesResult(model, varssol):
             if key[0] < key[1]:
                 edges.add(key)
     return edges
+
+model, varshall, varsdegree = runModel(hallways, vdum)
 
 used_edges= getEdgesResult(model, varshall)
 print("The used edges in the solution are:")
@@ -187,6 +266,6 @@ for edge in used_edges:
         })
         root.append(new_path_element)
 
-tree.write(testPath+"\\longestCyclesWithVdumDisconnectedModelFunc1412.3.svg")
-print(f"New result is in newly created file{testPath+'\\longestCyclesWithVdumDisconnectedModelFunc1412.3.svg'}")
+tree.write(testPath+"\\longestCyclesWithCallback412.3.svg")
+print(f"New result is in newly created file{testPath+'\\longestCyclesWithCallback1412.3.svg'}")
 pprint(f"We have  {vdum} nodes without the dummy vertex")
