@@ -119,39 +119,90 @@ print(f"the neighbourhoods are: {neighbours}")
 
 # now try out the gurobi libary:
 #I copied the shortest subtour function since it is used in TSPCallBAck, but I will change it to longest, and rename it properly
-def longest_subtour(edges):
-    """Given a list of edges, return the shortest subtour (as a list of nodes)
-    found by following those edges. It is assumed there is exactly one 'in'
-    edge and one 'out' edge for every node represented in the edge list."""
+def getReachable(neighborhoods, start, reachable=None):
+    if reachable==None:
+        reachable={start}
+    for neighbor in neighborhoods[start]:
+        if not neighbor in reachable:
+            reachable.add(neighbor)
+            reachable= getReachable(neighborhoods,neighbor, reachable)
+    return reachable
+
+def vdum_reachable(edges, vdum):
+    """Assumes edges are a so far feasible solution, meaning vdum is visited exactly once."""
 
     # Create a mapping from each node to its neighbours
     node_neighbors = defaultdict(list)
     for i, j in edges:
         node_neighbors[i].append(j)
+        node_neighbors[j].append(i)
     assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())
+    assert vdum in node_neighbors
+    reachableFromVdum= getReachable(node_neighbors, vdum)
+    notReachable= [key for key in node_neighbors.keys() if key not in reachableFromVdum]
+    return reachableFromVdum, notReachable
+    # unvisited=set(node_neighbors.keys())
+    # current=vdum
+    # neigbors=[vertex for vertex in node_neighbors[vdum] if vertex in unvisited]
+    # while unvisited:
+    #     while neigbors:
+    #         next=neigbors.pop()
+    #         unvisited.remove(next)
+
+
+
 
     # Follow edges to find cycles. Each time a new cycle is found, keep track
     # of the shortest cycle found so far and restart from an unvisited node.
-    unvisited = set(edges)
-    longest = 0
-    longestvertices=None
-    while unvisited:
-        cyclevertices = []
-        cycle=0
-        neighbors = list(unvisited)
-        while neighbors:
-            current = neighbors.pop()
-            cyclevertices.append(current)
-            cycle+=hallways(current)
-            unvisited.remove(current)
-            neighbors = [j for j in node_neighbors[current] if j in unvisited]
-        if longestvertices is None or longest < cycle:
-            longest = cycle
-            longestvertices = cyclevertices
-
-    assert longestvertices is not None
-    print(f"longest tour:{longest}, cycle: {cycle} while edges are:{edges}")
-    return longestvertices
+    #The solution must visit vdum exactly once, so lets start there.
+    # tovertex= node_neighbors[vdum][0]
+    # current=(vdum, tovertex)
+    # reversecurrent= (tovertex, vdum)
+    # print(f"len of edges:{len(edges)}: {edges}\n with current:{current}")
+    # unvisited=set(edges)
+    # unvisited.remove(current)
+    # print(f"unvisited: {unvisited}")
+    # if reversecurrent in unvisited:
+    #     unvisited.remove(reversecurrent)
+    # longest = 0
+    # longestedges= {current}
+    # incidentvdum = [(tovertex, i) for i in node_neighbors[tovertex] if (tovertex, i) in unvisited]
+    #
+    # while incidentvdum:
+    #     cycleedges = {(vdum,node_neighbors[vdum][0])}
+    #     cycle=0
+    #     unvisite = list(incidentvdum)
+    #     while incidentedges:
+    #         current = incidentedges.pop()
+    #         reversecurrent=(current[1],current[0])
+    #         tovertex=current[1]
+    #         cycleedges.add(current)
+    #         if vdum in current:
+    #             cycle+=0
+    #         else:
+    #             if current in hallways.keys():
+    #                 cycle+=hallways[current]
+    #             elif reversecurrent in hallways.keys():
+    #                 cycle+= hallways[reversecurrent]
+    #             else:
+    #                 print(f"somehow edge{current} is not in the hallways...")
+    #                 return
+    #         if current in unvisited:
+    #             unvisited.remove(current)
+    #             if reversecurrent in unvisited:
+    #                 unvisited.remove(reversecurrent)
+    #         elif reversecurrent in unvisited:
+    #             unvisited.remove(reversecurrent)
+    #         else:
+    #             print(f"current:{current}is not in the unvisited, but how?{unvisited}")
+    #         incidentedges = [(tovertex,i) for i in node_neighbors[tovertex] if (tovertex, i) in unvisited]
+    #     if longestedges is None or longest < cycle:
+    #         longest = cycle
+    #         longestedges = cycleedges
+    #
+    # assert longestedges is not None
+    # print(f"longest tour:{longest}, cycle: {cycle} while edges are:{longestedges}")
+    # return longestedges
 
 # I literally copied this TSPCallBack class from :https://docs.gurobi.com/projects/examples/en/current/examples/python/tsp.html#subsubsectiontsp-py
 #To see if it works. I have constructed my own subtour elimination constraint, but I want to see what this does first.
@@ -182,20 +233,53 @@ class TSPCallback:
         Assumes we are at MIPSOL."""
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
-        tour = longest_subtour(edges)
+        reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
+        print(f"reachable from vdum:{reachableVdum}\n not reachable from vdum:{notReachableVdum}")
         # touredges=[(tour[i], tour[i+1]) for i in range(len(tour)-1)]+[(tour[i+1], tour[i]) for i in range(len(tour)-1)]
         # edgeOutsideTour=[edge for edge in edges if edge not in touredges]
-        # if len(edgeOutsideTour) > 0:
-        #The number of edges going from the vertices in the longest tour and the other
-        # must be larger than two, to be connected.
-        edgesS=[(v,n) for v in tour for n in neighbours[v]]+[(n,v) for v in tour for n in neighbours[v]]
-        print(f"edgesS:{edgesS}")
-        edgesNotS=[edge for edge in hallways.keys() if edge not in edgesS]
+        # if len(edgeOutsideTour) > len(touredges): #Since the reverse hallways are in edgeOutside Tour, the len of that must be bigger than edges in the tour,
+        # then we have disconnected solution which may not occur so we add constraint
+        #     tourvertices=set()
+        #     for edge in touredges:
+        #         tourvertices.add(edge[0])
+        #         tourvertices.add(edge[1])
+        edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
+        print(f"length of edges S before the lazy constraint:{len(edgesS)}")
+        edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
+        edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
+        print(f"length of edges not in S before lazy constraint: {len(edgesNotS)}")
+        print(f"{len(edgeCutS)} - edge cut for S:{edgeCutS}")
+
         for f in edgesS:
             for g in edgesNotS:
                 model.cbLazy(
-                    quicksum([self.x[edge] for edge in edgesS])
+                    quicksum([self.x[edge] for edge in edgeCutS])
                     >= 2*(self.x[f]+self.x[g]-1))
+        # else:
+        #     print(f"WE HAVE LEN TOUR:{len(touredges)}")
+        #     tourvertices = set()
+        #     for edge in touredges:
+        #         tourvertices.add(edge[0])
+        #         tourvertices.add(edge[1])
+        #     edgesS = [(v, n) for v in tourvertices for n in neighbours[v]] + [(n, v) for v in tourvertices for n in
+        #                                                                       neighbours[v]]
+        #     edgesNotS = [edge for edge in hallways.keys() if edge not in edgesS]
+        #     for f in edgesS:
+        #         for g in edgesNotS:
+        #             model.cbLazy(
+        #                 quicksum([self.x[edge] for edge in edgesS])
+        #                 >= 2 * (self.x[f] + self.x[g] - 1))
+
+        #The number of edges going from the vertices in the longest tour and the other
+        # must be larger than two, to be connected.
+        # edgesS=[(v,n) for v in tour for n in neighbours[v]]+[(n,v) for v in tour for n in neighbours[v]]
+        # print(f"edgesS:{edgesS}")
+        # edgesNotS=[edge for edge in hallways.keys() if edge not in edgesS]
+        # for f in edgesS:
+        #     for g in edgesNotS:
+        #         model.cbLazy(
+        #             quicksum([self.x[edge] for edge in edgesS])
+        #             >= 2*(self.x[f]+self.x[g]-1))
         # if len(tour) < len(self.nodes):
         #     # add subtour elimination constraint for every pair of cities in tour
         #     nnodes=len(tour)
@@ -276,17 +360,49 @@ print(f"the root of the empty svg file with only the floorplan image: {root}")
 
 
 ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+startend=[]
+for i,j in used_edges:
+    if j==vdum:
+        startend.append(i)
+
+print(f"we start the tour visiting vdum:{len(startend)} times, in :{startend[0]}, and end in {startend[1]}")
 for edge in used_edges:
     if vdum not in edge:
-        startco, endco= getCoordinatesPair(edge)
-        new_path_element = ET.Element("path", attrib={
-            "d": Path(Line(start=startco, end=endco)).d(),
-            "stroke": "purple",
-            "fill": "none",
-            "stroke-width": "2"
-        })
-        root.append(new_path_element)
+        if startend[0] in edge:
+            startco, endco = getCoordinatesPair(edge)
+            new_path_element = ET.Element("path", attrib={
+                "d": Path(Line(start=startco, end=endco)).d(),
+                "stroke": "red",
+                "fill": "none",
+                "stroke-width": "2"
+            })
+            root.append(new_path_element)
+        elif startend[1] in edge:
+            startco, endco = getCoordinatesPair(edge)
+            new_path_element = ET.Element("path", attrib={
+                "d": Path(Line(start=startco, end=endco)).d(),
+                "stroke": "green",
+                "fill": "none",
+                "stroke-width": "2"
+            })
+            root.append(new_path_element)
+        else:
+            startco, endco= getCoordinatesPair(edge)
+            new_path_element = ET.Element("path", attrib={
+                "d": Path(Line(start=startco, end=endco)).d(),
+                "stroke": "purple",
+                "fill": "none",
+                "stroke-width": "2"
+            })
+            root.append(new_path_element)
 
 tree.write(testPath+"\\longestCyclesWithMyCallback412.3.svg")
 print(f"New result is in newly created file{testPath+'\\longestCyclesWithMyCallback1412.3.svg'}")
 pprint(f"We have  {vdum} nodes without the dummy vertex")
+
+print(hallways)
+combinedhalls=dict()
+for key,value in hallways.items():
+    combinedhalls[key]=value
+    combinedhalls[(key[1],key[0])]=value
+print(combinedhalls)
