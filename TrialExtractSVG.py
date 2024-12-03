@@ -132,21 +132,26 @@ def longest_subtour(edges):
 
     # Follow edges to find cycles. Each time a new cycle is found, keep track
     # of the shortest cycle found so far and restart from an unvisited node.
-    unvisited = set(node_neighbors)
-    longest = None
+    unvisited = set(edges)
+    longest = 0
+    longestvertices=None
     while unvisited:
-        cycle = []
+        cyclevertices = []
+        cycle=0
         neighbors = list(unvisited)
         while neighbors:
             current = neighbors.pop()
-            cycle.append(current)
+            cyclevertices.append(current)
+            cycle+=hallways(current)
             unvisited.remove(current)
             neighbors = [j for j in node_neighbors[current] if j in unvisited]
-        if longest is None or len(longest) < len(cycle):
+        if longestvertices is None or longest < cycle:
             longest = cycle
+            longestvertices = cyclevertices
 
-    assert longest is not None
-    return longest
+    assert longestvertices is not None
+    print(f"longest tour:{longest}, cycle: {cycle} while edges are:{edges}")
+    return longestvertices
 
 # I literally copied this TSPCallBack class from :https://docs.gurobi.com/projects/examples/en/current/examples/python/tsp.html#subsubsectiontsp-py
 #To see if it works. I have constructed my own subtour elimination constraint, but I want to see what this does first.
@@ -178,6 +183,19 @@ class TSPCallback:
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
         tour = longest_subtour(edges)
+        # touredges=[(tour[i], tour[i+1]) for i in range(len(tour)-1)]+[(tour[i+1], tour[i]) for i in range(len(tour)-1)]
+        # edgeOutsideTour=[edge for edge in edges if edge not in touredges]
+        # if len(edgeOutsideTour) > 0:
+        #The number of edges going from the vertices in the longest tour and the other
+        # must be larger than two, to be connected.
+        edgesS=[(v,n) for v in tour for n in neighbours[v]]+[(n,v) for v in tour for n in neighbours[v]]
+        print(f"edgesS:{edgesS}")
+        edgesNotS=[edge for edge in hallways.keys() if edge not in edgesS]
+        for f in edgesS:
+            for g in edgesNotS:
+                model.cbLazy(
+                    quicksum([self.x[edge] for edge in edgesS])
+                    >= 2*(self.x[f]+self.x[g]-1))
         # if len(tour) < len(self.nodes):
         #     # add subtour elimination constraint for every pair of cities in tour
         #     nnodes=len(tour)
@@ -209,13 +227,16 @@ def runModel(halls, nvdum):
 
     # Add the even degree constraint for dummyvetex nvdum=2:
     m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
+    m.addConstr(sum([varssol[(e, nvdum)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
 
     for i in range(nvdum):
         m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
+        m.addConstr(sum([varssol[(e, i)] for e in neighbours[i]]) == 2 * varsaux[i],
+                    name=f'evenDegreeVertex{i}')
     # Call optimize to get the solution
     m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(nextnode), varssol)
+    cb = TSPCallback(range(vdum+1), varssol)
     m.optimize(cb)
     # m.optimize()
     return m, varssol, varsaux
@@ -266,6 +287,6 @@ for edge in used_edges:
         })
         root.append(new_path_element)
 
-tree.write(testPath+"\\longestCyclesWithCallback412.3.svg")
-print(f"New result is in newly created file{testPath+'\\longestCyclesWithCallback1412.3.svg'}")
+tree.write(testPath+"\\longestCyclesWithMyCallback412.3.svg")
+print(f"New result is in newly created file{testPath+'\\longestCyclesWithMyCallback1412.3.svg'}")
 pprint(f"We have  {vdum} nodes without the dummy vertex")
