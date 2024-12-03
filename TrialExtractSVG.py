@@ -1,4 +1,5 @@
 import os
+from os.path import split
 
 from networkx.classes import neighbors
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
@@ -9,6 +10,7 @@ import numpy as np
 import logging
 from collections import defaultdict
 from itertools import combinations
+import re
 
 
 # Get the path to the drawings
@@ -48,7 +50,7 @@ maxVnum={}# keys are maximum numbers, value is a tuple of (building, floor) wher
 
 nextnode=0
 building="CARRE 1412"
-floor=3# Gurobi uses dictionaries where the keys are pairs of (start, end) having a value
+floor=str(3)# Gurobi uses dictionaries where the keys are pairs of (start, end) having a value
 # of the distance between them. To keep the information about the labels, I will create
 # a separate dictionary, having keys (start, end) and value the label name I assigned to it
 # then its easy to check if special actions are required.
@@ -117,8 +119,8 @@ for v1,v2 in hallways.keys():
 
 print(f"the neighbourhoods are: {neighbours}")
 
-# now try out the gurobi libary:
-#I copied the shortest subtour function since it is used in TSPCallBAck, but I will change it to longest, and rename it properly
+# Now try out the gurobi libary:
+
 def getReachable(neighborhoods, start, reachable=None):
     if reachable==None:
         reachable={start}
@@ -129,88 +131,26 @@ def getReachable(neighborhoods, start, reachable=None):
     return reachable
 
 def vdum_reachable(edges, vdum):
-    """Assumes edges are a so far feasible solution, meaning vdum is visited exactly once."""
-
-    # Create a mapping from each node to its neighbours
+    # Create a mapping from each node to its neighbours in the feasible solution
     node_neighbors = defaultdict(list)
     for i, j in edges:
         node_neighbors[i].append(j)
         node_neighbors[j].append(i)
-    assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())
-    assert vdum in node_neighbors
+
+    assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())#assert even degree of the vertices in the solution
+    assert vdum in node_neighbors #assert vdum being a vertex visited in the solution
+
     reachableFromVdum= getReachable(node_neighbors, vdum)
     notReachable= [key for key in node_neighbors.keys() if key not in reachableFromVdum]
     return reachableFromVdum, notReachable
-    # unvisited=set(node_neighbors.keys())
-    # current=vdum
-    # neigbors=[vertex for vertex in node_neighbors[vdum] if vertex in unvisited]
-    # while unvisited:
-    #     while neigbors:
-    #         next=neigbors.pop()
-    #         unvisited.remove(next)
-
-
-
-
-    # Follow edges to find cycles. Each time a new cycle is found, keep track
-    # of the shortest cycle found so far and restart from an unvisited node.
-    #The solution must visit vdum exactly once, so lets start there.
-    # tovertex= node_neighbors[vdum][0]
-    # current=(vdum, tovertex)
-    # reversecurrent= (tovertex, vdum)
-    # print(f"len of edges:{len(edges)}: {edges}\n with current:{current}")
-    # unvisited=set(edges)
-    # unvisited.remove(current)
-    # print(f"unvisited: {unvisited}")
-    # if reversecurrent in unvisited:
-    #     unvisited.remove(reversecurrent)
-    # longest = 0
-    # longestedges= {current}
-    # incidentvdum = [(tovertex, i) for i in node_neighbors[tovertex] if (tovertex, i) in unvisited]
-    #
-    # while incidentvdum:
-    #     cycleedges = {(vdum,node_neighbors[vdum][0])}
-    #     cycle=0
-    #     unvisite = list(incidentvdum)
-    #     while incidentedges:
-    #         current = incidentedges.pop()
-    #         reversecurrent=(current[1],current[0])
-    #         tovertex=current[1]
-    #         cycleedges.add(current)
-    #         if vdum in current:
-    #             cycle+=0
-    #         else:
-    #             if current in hallways.keys():
-    #                 cycle+=hallways[current]
-    #             elif reversecurrent in hallways.keys():
-    #                 cycle+= hallways[reversecurrent]
-    #             else:
-    #                 print(f"somehow edge{current} is not in the hallways...")
-    #                 return
-    #         if current in unvisited:
-    #             unvisited.remove(current)
-    #             if reversecurrent in unvisited:
-    #                 unvisited.remove(reversecurrent)
-    #         elif reversecurrent in unvisited:
-    #             unvisited.remove(reversecurrent)
-    #         else:
-    #             print(f"current:{current}is not in the unvisited, but how?{unvisited}")
-    #         incidentedges = [(tovertex,i) for i in node_neighbors[tovertex] if (tovertex, i) in unvisited]
-    #     if longestedges is None or longest < cycle:
-    #         longest = cycle
-    #         longestedges = cycleedges
-    #
-    # assert longestedges is not None
-    # print(f"longest tour:{longest}, cycle: {cycle} while edges are:{longestedges}")
-    # return longestedges
 
 # I literally copied this TSPCallBack class from :https://docs.gurobi.com/projects/examples/en/current/examples/python/tsp.html#subsubsectiontsp-py
-#To see if it works. I have constructed my own subtour elimination constraint, but I want to see what this does first.
-# I can start to play around and understand the structure, and adjust the thing where needed to fit my problem
+# To see if it works. I have constructed my own subtour elimination constraint, but I wanted to see what the original structure in the example  does first.
+# I then started to play around and understand the structure, and adjust it where needed to fit my problem, of finding a longest trail visiting vdum exactly once
 class TSPCallback:
     """Callback class implementing lazy constraints for the TSP.  At MIPSOL
-    callbacks, solutions are checked for subtours and subtour elimination
-    constraints are added if needed."""
+    callbacks, solutions are checked for disconnected subtours and then add subtour elimination
+    constraints if needed/ the solution contains disconneced subtours."""
 
     def __init__(self, nodes, x):
         self.nodes = nodes
@@ -228,104 +168,58 @@ class TSPCallback:
                 model.terminate()
 
     def eliminate_subtours(self, model):
-        """Extract the current solution, check for subtours, and formulate lazy
-        constraints to cut off the current solution if subtours are found.
+        """Extract the current solution, find the vertices reachable starting from vdum in the solution
+        and define the edge cut of these vertices in the original graph. then formulate lazy
+        constraints to cut off the current solution if disconnected vertices are found.
         Assumes we are at MIPSOL."""
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
         reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
         print(f"reachable from vdum:{reachableVdum}\n not reachable from vdum:{notReachableVdum}")
-        # touredges=[(tour[i], tour[i+1]) for i in range(len(tour)-1)]+[(tour[i+1], tour[i]) for i in range(len(tour)-1)]
-        # edgeOutsideTour=[edge for edge in edges if edge not in touredges]
-        # if len(edgeOutsideTour) > len(touredges): #Since the reverse hallways are in edgeOutside Tour, the len of that must be bigger than edges in the tour,
-        # then we have disconnected solution which may not occur so we add constraint
-        #     tourvertices=set()
-        #     for edge in touredges:
-        #         tourvertices.add(edge[0])
-        #         tourvertices.add(edge[1])
+
         edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
-        print(f"length of edges S before the lazy constraint:{len(edgesS)}")
         edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
         edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
-        print(f"length of edges not in S before lazy constraint: {len(edgesNotS)}")
-        print(f"{len(edgeCutS)} - edge cut for S:{edgeCutS}")
 
         for f in edgesS:
             for g in edgesNotS:
                 model.cbLazy(
                     quicksum([self.x[edge] for edge in edgeCutS])
                     >= 2*(self.x[f]+self.x[g]-1))
-        # else:
-        #     print(f"WE HAVE LEN TOUR:{len(touredges)}")
-        #     tourvertices = set()
-        #     for edge in touredges:
-        #         tourvertices.add(edge[0])
-        #         tourvertices.add(edge[1])
-        #     edgesS = [(v, n) for v in tourvertices for n in neighbours[v]] + [(n, v) for v in tourvertices for n in
-        #                                                                       neighbours[v]]
-        #     edgesNotS = [edge for edge in hallways.keys() if edge not in edgesS]
-        #     for f in edgesS:
-        #         for g in edgesNotS:
-        #             model.cbLazy(
-        #                 quicksum([self.x[edge] for edge in edgesS])
-        #                 >= 2 * (self.x[f] + self.x[g] - 1))
-
-        #The number of edges going from the vertices in the longest tour and the other
-        # must be larger than two, to be connected.
-        # edgesS=[(v,n) for v in tour for n in neighbours[v]]+[(n,v) for v in tour for n in neighbours[v]]
-        # print(f"edgesS:{edgesS}")
-        # edgesNotS=[edge for edge in hallways.keys() if edge not in edgesS]
-        # for f in edgesS:
-        #     for g in edgesNotS:
-        #         model.cbLazy(
-        #             quicksum([self.x[edge] for edge in edgesS])
-        #             >= 2*(self.x[f]+self.x[g]-1))
-        # if len(tour) < len(self.nodes):
-        #     # add subtour elimination constraint for every pair of cities in tour
-        #     nnodes=len(tour)
-        #     try:
-        #         model.cbLazy(
-        #             quicksum([self.x[(tour[i], tour[i+1])] for i in range(nnodes-1)])
-        #             <= len(tour) - 1
-        #         )
-        #     except:
-        #         print(f"exception: tour is:{tour}\n edges:{edges}\nself.x:{self.x}\n connection in x:{(tour[0],tour[-1])in self.x}")
-
 
 def runModel(halls, nvdum):
     m = Model()
 
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
-    for v in m.getVars():
-        print(f"v name: {v.VarName} with obj value: {v.X:g} ")
+
     # Symmetric direction: use dict.update to alias variable with new key
     varssol.update({(j, i): varssol[i, j] for i, j in varssol.keys()})
 
-    # Add variable to help ensure even degree
+    # Add auxiliary variable to help ensure even degree
     varsaux = m.addVars(range(nvdum), vtype=GRB.INTEGER, name="y")
 
     # Set the objective function for the model
     m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
-    # Then add constaints, but not yet the connectivity constraint.
 
     # Add the even degree constraint for dummyvetex nvdum=2:
     m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
-    m.addConstr(sum([varssol[(e, nvdum)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
 
+    # Add the even degree constraint for the other vertices
     for i in range(nvdum):
         m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
-        m.addConstr(sum([varssol[(e, i)] for e in neighbours[i]]) == 2 * varsaux[i],
-                    name=f'evenDegreeVertex{i}')
-    # Call optimize to get the solution
+
+    # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
     cb = TSPCallback(range(vdum+1), varssol)
-    m.optimize(cb)
-    # m.optimize()
-    return m, varssol, varsaux
-#Retreive final values for the varshall: hallway variables and print them
 
+    # Call optimize with the callback structure to get a connected solution solution
+    m.optimize(cb)
+    return m, varssol, varsaux
+
+
+#Retreive final values for the varshall: hallway variables and print them
 def getEdgesResult(model, varssol):
     sol = model.getAttr('X', varssol)
     edges = set()
@@ -335,74 +229,91 @@ def getEdgesResult(model, varssol):
                 edges.add(key)
     return edges
 
-model, varshall, varsdegree = runModel(hallways, vdum)
-
-used_edges= getEdgesResult(model, varshall)
-print("The used edges in the solution are:")
-pprint(used_edges)
-
+#Define a function returning the building and floor a vertex vnum lies in
 def getBuildingFloor(vnum):
    return nodeToCoordinate[vnum]['Building'], nodeToCoordinate[vnum]['Floor']
 
-#Translate vertex pairs back to coordinates:
-
+#Translate a vertex pair representing an edge, back to coordinates:
 def getCoordinatesPair(vtuple):
     return nodeToCoordinate[vtuple[0]]["Location"], nodeToCoordinate[vtuple[1]]["Location"]
 
-testPath= PATH+("\\Eerste aantekeningen\\CARRE 1412")
-newFigurePath = testPath+"\\empty1412.3.svg"
+#Get the building name and number from the a building name containing both of them with a space in between.
+def splitNameNumber(buildingNo):
+    res = buildingNo.split()
+    print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
+    return res[0], res[1]
 
-tree = ET.parse(newFigurePath)
-tree.write(testPath+"\\backupempty1412.3.svg")
+def drawEdgesInFloorplans(edges, vdum):
+    #first get the start and end of the trail
+    startend = []
+    for i, j in edges:
+        if j == vdum:
+            startend.append(i)
 
-root = tree.getroot()
-print(f"the root of the empty svg file with only the floorplan image: {root}")
+    testPath = PATH + ("\\Eerste aantekeningen\\TestLoopsBuildings")
 
+    #Create the dictionary where the information for the floor plans for the result are stored
+    figuresResultBuildings  = dict()
+    for building in os.listdir(testPath):
+        buildingTestPath= testPath+f"\\{building}"
+        listOfFiles = os.listdir(buildingTestPath)
+        for file in listOfFiles:
+            if file.endswith(".svg"):
+                floor= file.split('.')[1]
+                newFigurePath = buildingTestPath + f"\\{file}"
 
-ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
-startend=[]
-for i,j in used_edges:
-    if j==vdum:
-        startend.append(i)
+                tree = ET.parse(newFigurePath)
+                root = tree.getroot()
+                ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
 
-print(f"we start the tour visiting vdum:{len(startend)} times, in :{startend[0]}, and end in {startend[1]}")
-for edge in used_edges:
-    if vdum not in edge:
-        if startend[0] in edge:
-            startco, endco = getCoordinatesPair(edge)
-            new_path_element = ET.Element("path", attrib={
-                "d": Path(Line(start=startco, end=endco)).d(),
-                "stroke": "red",
-                "fill": "none",
-                "stroke-width": "2"
-            })
-            root.append(new_path_element)
-        elif startend[1] in edge:
-            startco, endco = getCoordinatesPair(edge)
-            new_path_element = ET.Element("path", attrib={
-                "d": Path(Line(start=startco, end=endco)).d(),
-                "stroke": "green",
-                "fill": "none",
-                "stroke-width": "2"
-            })
-            root.append(new_path_element)
-        else:
-            startco, endco= getCoordinatesPair(edge)
-            new_path_element = ET.Element("path", attrib={
-                "d": Path(Line(start=startco, end=endco)).d(),
-                "stroke": "purple",
-                "fill": "none",
-                "stroke-width": "2"
-            })
-            root.append(new_path_element)
+                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
 
-tree.write(testPath+"\\longestCyclesWithMyCallback412.3.svg")
-print(f"New result is in newly created file{testPath+'\\longestCyclesWithMyCallback1412.3.svg'}")
-pprint(f"We have  {vdum} nodes without the dummy vertex")
+    # Add the paths to the roots
+    for edge in edges:
+        if vdum not in edge:
+            building0, floor0= getBuildingFloor(edge[0])
+            building1, floor1= getBuildingFloor(edge[1])
+            #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
+            if building0==building1:
+                #Check if we are on the same floor, if not, we take a staircase or elevator.
+                if floor0==floor1:
+                    #Now we can draw the lines in the floor plan.
+                    if startend[0] in edge:
+                        color="red"
+                    elif startend[1] in edge:
+                        color="green"
+                    else:
+                        color="purple"
+                    startco, endco = getCoordinatesPair(edge)
+                    new_path_element = ET.Element("path", attrib={
+                        "d": Path(Line(start=startco, end=endco)).d(),
+                        "stroke": color,
+                        "fill": "none",
+                        "stroke-width": "2"
+                    })
+                    thisRoot= figuresResultBuildings[building0][floor0]['root']
+                    thisRoot.append(new_path_element)
 
-print(hallways)
-combinedhalls=dict()
-for key,value in hallways.items():
-    combinedhalls[key]=value
-    combinedhalls[(key[1],key[0])]=value
-print(combinedhalls)
+                    #Maybe different colorings if we take an elevator, stair up, stair down, another building?
+                elif floor0<floor1:
+                    print(f"We take stairs up")
+                else:
+                    print(f"We take stairs down")
+            else:
+                print(f"We go from {building0} to {building1}")
+
+    # Draw the figures in a new file:
+    for building, buildinginfo in figuresResultBuildings.items():
+        buildingTestPath= testPath+f"\\{building}"
+        for floor, floorinfo in buildinginfo.items():
+            buildingName, buildingNumber = splitNameNumber(building)
+            floortree= floorinfo['tree']
+            testfilename= f"\\testingLoop{buildingNumber}.{floor}.svg"
+            floortree.write(buildingTestPath+testfilename)
+
+model, varshall, varsdegree = runModel(hallways, vdum)
+lengthLongestTrail=model.getAttr('ObjVal')
+print(f"The longest trail is {lengthLongestTrail} meters long")
+used_edges= getEdgesResult(model, varshall)
+pprint(f"The used edges in the solution are:\n{used_edges}")
+drawEdgesInFloorplans(used_edges, vdum)
