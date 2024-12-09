@@ -124,10 +124,12 @@ neighboursnew=neighbours
 connected=[]
 for pathname, pathinfo in specialPaths.items():
     if pathname[2]=="E":
-        if not pathname in connected:
-            startname=pathname[:4]
+        startname = pathname[:4]
+        if not startname in connected:
+            print(startname)
             elevatorConnects=[key for key in specialPaths.keys() if startname in key]
             for e1, e2 in combinations(elevatorConnects,2):
+                print(f"comb {e1} and {e2}")
                 Nend1start= len(neighbours[specialPaths[e1]["Start"]["Vnum"]])
                 Nend1end=len(neighbours[specialPaths[e1]["End"]["Vnum"]])
                 if Nend1start<Nend1end:
@@ -143,7 +145,7 @@ for pathname, pathinfo in specialPaths.items():
                 hallways[(end1, end2)]=1
                 neighboursnew[end1].add(end2)
                 neighboursnew[end2].add(end1)
-            connected.append(pathname)
+            connected.append(startname)
 
 
 
