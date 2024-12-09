@@ -16,93 +16,94 @@ import re
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
 PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
-PATH_drawings= PATH+"\\Eerste aantekeningen"
-#Get the paths and attributes of the third floor of Carré
+PATH_test= PATH+"\\Eerste aantekeningen\\MoreFloors"
+PATH_drawings= PATH_test +"\\OriginalPaths"
+PATH_empty= PATH_test+"\\Empty Floors"
+PATH_result= PATH_test+"\\ResultPaths"
 
-#IDEA: make a list of nodes, for all of the path starts and ends. After we also know the scale and made the
-#Edges have the correct real world weights, we can start at merging nodes in one, if they are closer than X meters in real life.
-
-paths, attributes = svg2paths(PATH_drawings+"\\CARRE 1412\\paths1412.3.svg")
-
-for path, attr in zip(paths, attributes):
-    if "inkscape:label" in attr.keys():
-        if attr['inkscape:label'] == "CR31mtr":
-            print(f"the scale label is: {attr['inkscape:label']}")
-            lengthForOneMeter= abs(path.start - path.end)
-            break
-
-
-print(f"length for one meter is {lengthForOneMeter}")
-
-# code to check in what order we loop over dict items, but that is in order of creation.
-# Hence, when adding the maxvnum per floor per building, in ascending order, looping over them
-# gives the lowest keys first. Use this functionality to find the building a node belongs to based on nodenumber
-
-# for i in range(10,0, -1):
-#     maxVnu[i]=100+1
-#
-# for key, value in maxVnu.items():
-#     print(f"key is: {key}, with value: {value}")
-
+# Initiate some data structures to save information in
 nodeToCoordinate={}
 coordinateToNode={}
 maxVnum={}# keys are maximum numbers, value is a tuple of (building, floor) where this is the maximum vnum of
 
 nextnode=0
-building="CARRE 1412"
-floor=str(3)# Gurobi uses dictionaries where the keys are pairs of (start, end) having a value
-# of the distance between them. To keep the information about the labels, I will create
-# a separate dictionary, having keys (start, end) and value the label name I assigned to it
-# then its easy to check if special actions are required.
 
 specialPaths={}
 hallways={}
 
-for path, attr in zip(paths, attributes):
-    for i, line in enumerate(path):
-        start = np.round(line.start,3)
-        end = np.round(line.end,3)
-        edgeweight = abs(start - end)/lengthForOneMeter #edgeweight in meters
-        specialPath=False
-        if "inkscape:label" in attr.keys():
-            if 'mtr' in attr['inkscape:label']:
-                continue
+figuresResultBuildings  = dict()
+
+# Loop over the files to save a file where we can draw the resulting longest paths in
+for building in os.listdir(PATH_drawings):
+    buildingEmpty= PATH_empty+f"\\{building}"
+    listOfFiles = os.listdir(buildingEmpty)
+    for file in listOfFiles:
+        if file.endswith(".svg"):
+            floor= file.split('.')[1]
+            # if floor=='3':
+            #     continue
+            newFigurePath = buildingEmpty + f"\\{file}"
+
+            tree = ET.parse(newFigurePath)
+            root = tree.getroot()
+            ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+            if building in figuresResultBuildings:
+                figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
             else:
-                specialPath=True
+                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
+
+            #Now start extracting the path information
+            paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
+
+            for path, attr in zip(paths, attributes):
+                if "inkscape:label" in attr.keys():
+                    if "1mtr" in attr['inkscape:label']:
+                        print(f"the scale label is: {attr['inkscape:label']}")
+                        lengthForOneMeter = abs(path.start - path.end)
+                        break
+
+            for path, attr in zip(paths, attributes):
+                for i, line in enumerate(path):
+                    start = np.round(line.start, 3)
+                    end = np.round(line.end, 3)
+                    edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
+                    specialPath = False
+                    if "inkscape:label" in attr.keys():
+                        if 'mtr' in attr['inkscape:label']:
+                            continue
+                        else:
+                            specialPath = True
+
+                    if not (start, building, floor) in coordinateToNode:
+                        coordinateToNode[(start, building, floor)] = nextnode
+                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': start}
+                        snode = nextnode
+                        nextnode += 1
+                    else:
+                        snode = coordinateToNode[(start, building, floor)]
+
+                    if not (end, building, floor) in coordinateToNode:
+                        coordinateToNode[(end, building, floor)] = nextnode
+                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': end}
+                        enode = nextnode
+                        nextnode += 1
+                    else:
+                        enode = coordinateToNode[(end, building, floor)]
+
+                    if specialPath:
+                        specialPaths[attr['inkscape:label'] + str(i)] = {'Start': {'Vnum': snode, "Location": start},
+                                                                         "End": {"Vnum": enode, "Location": end},
+                                                                         'Building': building, 'Floor': floor}
+
+                    hallways[(snode, enode)] = edgeweight
 
 
-        if not (start, building, floor) in coordinateToNode:
-            coordinateToNode[(start, building, floor)]=nextnode
-            nodeToCoordinate[nextnode]={'Building': building, 'Floor': floor, 'Location':start}
-            snode=nextnode
-            nextnode+=1
-        else:
-            snode= coordinateToNode[(start, building, floor)]
 
-        if not (end, building, floor) in coordinateToNode:
-            coordinateToNode[(end, building, floor)]=nextnode
-            nodeToCoordinate[nextnode]={'Building': building, 'Floor': floor, 'Location':end}
-            enode=nextnode
-            nextnode+=1
-        else:
-            enode= coordinateToNode[(end, building, floor)]
-
-        if specialPath:
-            specialPaths[attr['inkscape:label'] + str(i)] = {'Start':{'Vnum': snode, "Location": start}, "End":{"Vnum":enode, "Location":end}, 'Building': building, 'Floor': floor}
-
-        hallways[(snode, enode)] = edgeweight
-
-
-maxVnum[nextnode-1]=(building, floor)
-
+print(figuresResultBuildings)
 print(f"the special paths are:")
 pprint(specialPaths)
 print("The hallways are:")
 pprint(hallways)
-
-print(f"we had a total of {nextnode} crossings for carre 3rd floor, matches reality of 63: {nextnode==63}?\n In"
-      f"before adding dummy vertex and edges")
-
 
 # Add hallways to the dummy vertex:
 vdum= nextnode
@@ -110,6 +111,7 @@ nextnode += 1
 
 for i in range(nextnode):
     hallways[(vdum, i)]=0
+
 # define a dictionary where each vertex maps to a set of its neighbours
 neighbours={i:{vdum} for i in range(vdum)}
 neighbours[vdum]=set(range(vdum))
@@ -117,9 +119,37 @@ for v1,v2 in hallways.keys():
     neighbours[v1].add(v2)
     neighbours[v2].add(v1)
 
-print(f"the neighbourhoods are: {neighbours}")
+neighboursnew=neighbours
+#Connect special paths, elevators first:
+connected=[]
+for pathname, pathinfo in specialPaths.items():
+    if pathname[2]=="E":
+        if not pathname in connected:
+            startname=pathname[:4]
+            elevatorConnects=[key for key in specialPaths.keys() if startname in key]
+            for e1, e2 in combinations(elevatorConnects,2):
+                Nend1start= len(neighbours[specialPaths[e1]["Start"]["Vnum"]])
+                Nend1end=len(neighbours[specialPaths[e1]["End"]["Vnum"]])
+                if Nend1start<Nend1end:
+                    end1= pathinfo["Start"]["Vnum"]
+                else:
+                    end1= pathinfo["End"]["Vnum"]
+                Nend2start= len(neighbours[specialPaths[e2]['Start']['Vnum']])
+                Nend2end= len(neighbours[specialPaths[e2]['End']['Vnum']])
+                if Nend2start<Nend2end:
+                    end2= specialPaths[e2]['Start']['Vnum']
+                else:
+                    end2= specialPaths[e2]['End']['Vnum']
+                hallways[(end1, end2)]=1
+                neighboursnew[end1].add(end2)
+                neighboursnew[end2].add(end1)
+            connected.append(pathname)
 
-# Now try out the gurobi libary:
+
+
+print(f"the neighbourhoods are: {neighbours}")
+neighbours=neighboursnew
+#Now define functions needed to find the longest route.
 
 def getReachable(neighborhoods, start, reachable=None):
     if reachable==None:
@@ -144,9 +174,6 @@ def vdum_reachable(edges, vdum):
     notReachable= [key for key in node_neighbors.keys() if key not in reachableFromVdum]
     return reachableFromVdum, notReachable
 
-# I literally copied this TSPCallBack class from :https://docs.gurobi.com/projects/examples/en/current/examples/python/tsp.html#subsubsectiontsp-py
-# To see if it works. I have constructed my own subtour elimination constraint, but I wanted to see what the original structure in the example  does first.
-# I then started to play around and understand the structure, and adjust it where needed to fit my problem, of finding a longest trail visiting vdum exactly once
 class TSPCallback:
     """Callback class implementing lazy constraints for the TSP.  At MIPSOL
     callbacks, solutions are checked for disconnected subtours and then add subtour elimination
@@ -181,11 +208,10 @@ class TSPCallback:
         edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
         edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
 
-        # for f in edgesS:
         for g in edgesNotS:
             model.cbLazy(
                 quicksum([self.x[edge] for edge in edgeCutS])
-                >= 2*(self.x[edgesS[0]]+self.x[g]-1))
+                >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
         # if len(edgesNotS) >0:
         #     model.cbLazy(
         #         quicksum([self.x[edge] for edge in edgeCutS])
@@ -252,25 +278,6 @@ def drawEdgesInFloorplans(edges, vdum):
     for i, j in edges:
         if j == vdum:
             startend.append(i)
-
-    testPath = PATH + ("\\Eerste aantekeningen\\TestLoopsBuildings")
-
-    #Create the dictionary where the information for the floor plans for the result are stored
-    figuresResultBuildings  = dict()
-    for building in os.listdir(testPath):
-        buildingTestPath= testPath+f"\\{building}"
-        listOfFiles = os.listdir(buildingTestPath)
-        for file in listOfFiles:
-            if file.endswith(".svg"):
-                floor= file.split('.')[1]
-                newFigurePath = buildingTestPath + f"\\{file}"
-
-                tree = ET.parse(newFigurePath)
-                root = tree.getroot()
-                ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
-
-                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
-
     # Add the paths to the roots
     for edge in edges:
         if vdum not in edge:
@@ -307,12 +314,14 @@ def drawEdgesInFloorplans(edges, vdum):
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
-        buildingTestPath= testPath+f"\\{building}"
+        buildingResultPath= PATH_result+f"\\{building}"
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
-            testfilename= f"\\testingLoopwithoutloop34testing{buildingNumber}.{floor}.svg"
-            floortree.write(buildingTestPath+testfilename)
+            print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
+            testfilename= f"\\testingMoreFloors{buildingNumber}.{floor}.svg"
+            floortree.write(buildingResultPath+testfilename)
+
 
 model, varshall, varsdegree = runModel(hallways, vdum)
 lengthLongestTrail=model.getAttr('ObjVal')
@@ -320,3 +329,4 @@ print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
 pprint(f"The used edges in the solution are:\n{used_edges}")
 drawEdgesInFloorplans(used_edges, vdum)
+
