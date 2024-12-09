@@ -186,7 +186,10 @@ class TSPCallback:
                 model.cbLazy(
                     quicksum([self.x[edge] for edge in edgeCutS])
                     >= 2*(self.x[f]+self.x[g]-1))
-
+        # if len(edgesNotS) >0:
+        #     model.cbLazy(
+        #         quicksum([self.x[edge] for edge in edgeCutS])
+        #         >= 2)
 def runModel(halls, nvdum):
     m = Model()
 
@@ -308,7 +311,7 @@ def drawEdgesInFloorplans(edges, vdum):
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
-            testfilename= f"\\testingLoop{buildingNumber}.{floor}.svg"
+            testfilename= f"\\testingLoopwithoutloop{buildingNumber}.{floor}.svg"
             floortree.write(buildingTestPath+testfilename)
 
 model, varshall, varsdegree = runModel(hallways, vdum)
