@@ -91,7 +91,7 @@ for building in os.listdir(PATH_drawings):
                         enode = coordinateToNode[(end, building, floor)]
 
                     if specialPath:
-                        specialPaths[attr['inkscape:label'] + str(i)] = {'Start': {'Vnum': snode, "Location": start},
+                        specialPaths[attr['inkscape:label']] = {'Start': {'Vnum': snode, "Location": start},
                                                                          "End": {"Vnum": enode, "Location": end},
                                                                          'Building': building, 'Floor': floor}
 
@@ -121,31 +121,52 @@ for v1,v2 in hallways.keys():
 
 neighboursnew=neighbours
 #Connect special paths, elevators first:
+#CONVENTION CHANGE: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
+# So old version: CRE11 now becomes CRE0101 and CRE25 is now CRE0205, so that in horst, or buildings with more than
+# 10 staircases, elevators or exits, the same code can be used
+def findSingleEnd(specialedge): #uses the global variables specialPaths and neighbours
+    Nstart = len(neighbours[specialPaths[specialedge]["Start"]["Vnum"]])
+    Nend = len(neighbours[specialPaths[specialedge]["End"]["Vnum"]])
+    if Nstart < Nend:
+        end = specialPaths[specialedge]["Start"]["Vnum"]
+    else:
+        end = specialPaths[specialedge]["End"]["Vnum"]
+    return end
+
 connected=[]
 for pathname, pathinfo in specialPaths.items():
-    if pathname[2]=="E":
-        startname = pathname[:4]
-        if not startname in connected:
+    if pathname[2]=="E": #We have an edge to an elevator
+        startname = pathname[:5]
+        if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
             print(startname)
             elevatorConnects=[key for key in specialPaths.keys() if startname in key]
             for e1, e2 in combinations(elevatorConnects,2):
                 print(f"comb {e1} and {e2}")
-                Nend1start= len(neighbours[specialPaths[e1]["Start"]["Vnum"]])
-                Nend1end=len(neighbours[specialPaths[e1]["End"]["Vnum"]])
-                if Nend1start<Nend1end:
-                    end1= pathinfo["Start"]["Vnum"]
-                else:
-                    end1= pathinfo["End"]["Vnum"]
-                Nend2start= len(neighbours[specialPaths[e2]['Start']['Vnum']])
-                Nend2end= len(neighbours[specialPaths[e2]['End']['Vnum']])
-                if Nend2start<Nend2end:
-                    end2= specialPaths[e2]['Start']['Vnum']
-                else:
-                    end2= specialPaths[e2]['End']['Vnum']
+                end1= findSingleEnd(e1)
+                end2= findSingleEnd(e2)
                 hallways[(end1, end2)]=1
                 neighboursnew[end1].add(end2)
                 neighboursnew[end2].add(end1)
             connected.append(startname)
+    elif pathname[2] == "S": #We have an edge to a staircase
+        if pathname not in connected: # if we have not connected these two floors with this staircase
+            end1= findSingleEnd(pathname)
+            otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
+            if otherSide in specialPaths:
+                print(f"original stair:{pathname}, other side:{otherSide}")
+                end2=findSingleEnd(otherSide)
+                hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
+                neighboursnew[end1].add(end2)
+                neighboursnew[end2].add(end1)
+                connected.append(pathname)
+                connected.append(otherSide)
+    elif pathname[2] == "C": #connecting buildings? naming conv?
+        otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
+        print(f"connection building from CR:{pathname} to CR:{otherSide}")
+    elif pathname[2]=='X':
+        print(f"we have an exit to outdoors: {pathname}")
+    else:
+        print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
 
 
@@ -321,7 +342,7 @@ def drawEdgesInFloorplans(edges, vdum):
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
             print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
-            testfilename= f"\\testingMoreFloors{buildingNumber}.{floor}.svg"
+            testfilename= f"\\testingMoreFloors2{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
 
