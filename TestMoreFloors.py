@@ -29,6 +29,7 @@ maxVnum={}# keys are maximum numbers, value is a tuple of (building, floor) wher
 nextnode=0
 
 specialPaths={}
+specialEdges={}
 hallways={}
 
 figuresResultBuildings  = dict()
@@ -95,6 +96,8 @@ for building in os.listdir(PATH_drawings):
                                                                          "End": {"Vnum": enode, "Location": end},
                                                                          'Building': building, 'Floor': floor}
 
+                        specialEdges[(snode, enode)]=attr['inkscape:label']
+                        specialEdges[(enode, snode)]=attr['inkscape:label']
                     hallways[(snode, enode)] = edgeweight
 
 
@@ -225,7 +228,6 @@ class TSPCallback:
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
         reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
-        print(f"reachable from vdum:{reachableVdum}\n not reachable from vdum:{notReachableVdum}")
 
         edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
         edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
@@ -315,9 +317,17 @@ def drawEdgesInFloorplans(edges, vdum):
                         color="red"
                     elif startend[1] in edge:
                         color="green"
+                    elif edge in specialEdges:
+                        print(f"We might want to color to which floor we are taking the stairs? or elevator?")
+                        color="pink"
                     else:
                         color="purple"
+
                     startco, endco = getCoordinatesPair(edge)
+                    if building0 =="CARRE 1412":
+                        if floor0 == '4':
+                            startco=startco +126.822+ 494.891j
+                            endco=endco +126.822+ 494.891j
                     new_path_element = ET.Element("path", attrib={
                         "d": Path(Line(start=startco, end=endco)).d(),
                         "stroke": color,
@@ -342,7 +352,7 @@ def drawEdgesInFloorplans(edges, vdum):
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
             print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
-            testfilename= f"\\testingMoreFloors2{buildingNumber}.{floor}.svg"
+            testfilename= f"\\testingMoreFloors3{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
 
@@ -352,4 +362,3 @@ print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
 pprint(f"The used edges in the solution are:\n{used_edges}")
 drawEdgesInFloorplans(used_edges, vdum)
-
