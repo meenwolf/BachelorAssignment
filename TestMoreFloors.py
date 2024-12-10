@@ -12,6 +12,9 @@ from collections import defaultdict
 from itertools import combinations
 import re
 
+#Define colors for the different floors you can go to in the result
+colorFloors=["pink","palevioletred",'deeppink','firebrick','orangered','orange','gold', 'lawngreen','green','darkcyan','cyan'
+             'steelblue', 'rebeccapurple', 'purple', 'fuchsia']
 
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -127,9 +130,9 @@ neighboursnew=neighbours
 #CONVENTION CHANGE: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
 # So old version: CRE11 now becomes CRE0101 and CRE25 is now CRE0205, so that in horst, or buildings with more than
 # 10 staircases, elevators or exits, the same code can be used
-def findSingleEnd(specialedge): #uses the global variables specialPaths and neighbours
-    Nstart = len(neighbours[specialPaths[specialedge]["Start"]["Vnum"]])
-    Nend = len(neighbours[specialPaths[specialedge]["End"]["Vnum"]])
+def findSingleEnd(specialedge,neighbourhood): #uses the global variables specialPaths
+    Nstart = len(neighbourhood[specialPaths[specialedge]["Start"]["Vnum"]])
+    Nend = len(neighbourhood[specialPaths[specialedge]["End"]["Vnum"]])
     if Nstart < Nend:
         end = specialPaths[specialedge]["Start"]["Vnum"]
     else:
@@ -145,19 +148,19 @@ for pathname, pathinfo in specialPaths.items():
             elevatorConnects=[key for key in specialPaths.keys() if startname in key]
             for e1, e2 in combinations(elevatorConnects,2):
                 print(f"comb {e1} and {e2}")
-                end1= findSingleEnd(e1)
-                end2= findSingleEnd(e2)
+                end1= findSingleEnd(e1, neighbours)
+                end2= findSingleEnd(e2, neighbours)
                 hallways[(end1, end2)]=1
                 neighboursnew[end1].add(end2)
                 neighboursnew[end2].add(end1)
             connected.append(startname)
     elif pathname[2] == "S": #We have an edge to a staircase
         if pathname not in connected: # if we have not connected these two floors with this staircase
-            end1= findSingleEnd(pathname)
+            end1= findSingleEnd(pathname, neighbours)
             otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
             if otherSide in specialPaths:
                 print(f"original stair:{pathname}, other side:{otherSide}")
-                end2=findSingleEnd(otherSide)
+                end2=findSingleEnd(otherSide, neighbours)
                 hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
                 neighboursnew[end1].add(end2)
                 neighboursnew[end2].add(end1)
@@ -174,9 +177,10 @@ for pathname, pathinfo in specialPaths.items():
 
 
 print(f"the neighbourhoods are: {neighbours}")
-neighbours=neighboursnew
 #Now define functions needed to find the longest route.
-
+neighboursold= neighbours
+neighbours=neighboursnew
+print(f"neighbours old is new? {neighboursold==neighbours}")
 def getReachable(neighborhoods, start, reachable=None):
     if reachable==None:
         reachable={start}
@@ -297,6 +301,14 @@ def splitNameNumber(buildingNo):
     print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
     return res[0], res[1]
 
+# def getSpecialUsedVertices(used_edges):
+#     specialVertices={}
+#     for edge in used_edges:
+#         if edge in specialEdges:
+#             specialVertices[edge[0]]=
+#             specialVertices.append(edge[1])
+#     return specialVertices
+
 def drawEdgesInFloorplans(edges, vdum):
     #first get the start and end of the trail
     startend = []
@@ -304,6 +316,7 @@ def drawEdgesInFloorplans(edges, vdum):
         if j == vdum:
             startend.append(i)
     # Add the paths to the roots
+    # specialVertices= getSpecialUsedVertices(edges)
     for edge in edges:
         if vdum not in edge:
             building0, floor0= getBuildingFloor(edge[0])
@@ -314,14 +327,31 @@ def drawEdgesInFloorplans(edges, vdum):
                 if floor0==floor1:
                     #Now we can draw the lines in the floor plan.
                     if startend[0] in edge:
-                        color="red"
+                        color="saddlebrown"
                     elif startend[1] in edge:
-                        color="green"
+                        color="saddlebrown"
                     elif edge in specialEdges:
-                        print(f"We might want to color to which floor we are taking the stairs? or elevator?")
-                        color="pink"
+                        edgename= specialEdges[edge]
+                        if edgename[2] == "S":
+                            toFloor= int(edgename[7:])
+                            color=colorFloors[toFloor]
+                        elif edgename[2] == "E":
+                            otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
+                            print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
+                            for  otherEdge in otherEdgesElev:
+                                if not otherEdge == edge:
+                                    toFloor= int(specialEdges[otherEdge][5:])
+                                    print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
+                                    color=colorFloors[toFloor]
+                        else:
+                            color='grey'
+                    # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
+                    #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
+                    #     if specialEdges[edge][2]=="S":
+                    #         #Convention, the last two numbers indicate the floor you go to
+                    #     color="pink"
                     else:
-                        color="purple"
+                        color="blue"
 
                     startco, endco = getCoordinatesPair(edge)
                     if building0 =="CARRE 1412":
