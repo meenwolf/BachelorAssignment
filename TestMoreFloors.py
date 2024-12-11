@@ -11,6 +11,7 @@ import logging
 from collections import defaultdict
 from itertools import combinations
 import re
+import math
 
 #Define colors for the different floors you can go to in the result
 colorFloors=["pink","palevioletred",'deeppink','firebrick','orangered','orange','gold', 'lawngreen','green','darkcyan','cyan'
@@ -309,6 +310,128 @@ def splitNameNumber(buildingNo):
 #             specialVertices.append(edge[1])
 #     return specialVertices
 
+def getRainbowColors(NwantedColors):
+    startred= 150 #to take bordeaux/dark red into account
+    maxgreen=220 #to prevent light yellow
+    minblue= 100 #for magenta
+    maxblue= 200 #for light pink
+
+    colors=[]
+    red=startred
+    green=0
+    blue=0
+    while red < 255:
+        colors.append((red,green,blue))
+        red+=1
+
+    while green < maxgreen:
+        colors.append((red,green,blue))
+        green+=1
+
+    while red>0:
+        colors.append((red,green,blue))
+        red-=1
+
+    while green< 255:
+        colors.append((red,green,blue))
+        green+=1
+
+    while blue<255:
+        colors.append((red,green,blue))
+        blue+=1
+
+    while green >0:
+        colors.append((red,green,blue))
+        green -= 1
+
+
+    while red < 255:
+        colors.append((red,green,blue))
+        red +=1
+
+    while blue > 100:
+        colors.append((red,green,blue))
+        blue -=1
+
+    while blue <= maxblue:
+        colors.append((red,round(green),blue))
+        blue +=1
+        green += 1.64
+
+    #toRed: startred,0,0 to 255,0,0
+    Red= 255- startred # possible reds, increase red value by 1 for each color
+    Orange = maxgreen  # to go from red to orange, increase green value by 1 this many times
+    Yellow= 255 # yellow tones, remove red by 1 for each color
+    Green=  255-maxgreen # green tones, add 1 green for each color
+    Lightblue= 255 # to light green/blue, add 1 blue for each color
+    Blue= 255 # to blue, remove 1 green for each color
+    Purple= 255 # to purple, add 1 red for each color
+    Magenta= 255-minblue #To magenta, remove 1 blue for each color
+    Lightpink= maxblue-minblue # to lighter pink, add 1 blue and 1.64 green for each color.
+    NpossibleColors= Red+Orange+Yellow+Green+Lightblue+Blue+Purple+Magenta+Lightpink
+
+    colors=[]
+    #Calculate how many of these colors need to be added to the colorgrid
+    nred= math.ceil(Red/NpossibleColors*NwantedColors)
+    norange= math.ceil(Orange/NpossibleColors*NwantedColors)
+    nyellow= math.ceil(Yellow/NpossibleColors*NwantedColors)
+    ngreen= math.ceil(Green/NpossibleColors*NwantedColors)
+    nlightblue=math.ceil(Lightblue/NpossibleColors*NwantedColors)
+    nblue= math.ceil(Blue/NpossibleColors*NwantedColors)
+    npurple= math.ceil(Purple/NpossibleColors*NwantedColors)
+    nmagenta= math.ceil(Magenta/NpossibleColors*NwantedColors)
+    nlightpink= math.ceil(Lightpink/NpossibleColors*NwantedColors)
+
+    #first add the red colors:
+    cval= np.linspace(startred, 255,nred)
+    for c in cval:
+        colors.append((round(c),0,0))
+
+    # Add the orange colors:
+    cval= np.linspace(0, maxgreen, norange)
+    for c in cval:
+        colors.append((255,round(c),0))
+
+    # Add the yellow colors
+    cval= np.linspace(0, 255, nyellow)
+    for c in cval:
+        colors.append((255-round(c), maxgreen, 0))
+
+    # Add the green colors
+    cval= np.linspace(maxgreen, 255, ngreen)
+    for c in cval:
+        colors.append((0,round(c),0))
+
+    # Add the lightblue colors
+    cval= np.linspace(0, 255, nlightblue)
+    for c in cval:
+        colors.append((0,255,round(c)))
+
+    # Add the blue colors
+    cval= np.linspace(0, 255, nblue)
+    for c in cval:
+        colors.append((0,255-round(c),255))
+
+    # Add the purple colors
+    cval = np.linspace(0, 255, npurple)
+    for c in cval:
+        colors.append((round(c),0,255))
+
+    # Add the magenta colors
+    cval= np.linspace(0, 255-minblue, nmagenta)
+    for c in cval:
+        colors.append((255, 0, 255-round(c)))
+
+    # Add the light pink colors
+    cval= np.linspace(0, maxblue-minblue, nlightpink)
+    for c in cval:
+        colors.append((255, round(c*1.64), minblue+round(c)))
+
+    return colors
+
+def rgb_to_string(rgb_tuple):
+    return f"rgb({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]})"
+
 def drawEdgesInFloorplans(edges, vdum):
     #first get the start and end of the trail
     startend = []
@@ -317,7 +440,9 @@ def drawEdgesInFloorplans(edges, vdum):
             startend.append(i)
     # Add the paths to the roots
     # specialVertices= getSpecialUsedVertices(edges)
-    for edge in edges:
+    rainbowColors= getRainbowColors(len(edges))
+
+    for i,edge in enumerate(edges):
         if vdum not in edge:
             building0, floor0= getBuildingFloor(edge[0])
             building1, floor1= getBuildingFloor(edge[1])
@@ -330,28 +455,28 @@ def drawEdgesInFloorplans(edges, vdum):
                         color="saddlebrown"
                     elif startend[1] in edge:
                         color="saddlebrown"
-                    elif edge in specialEdges:
-                        edgename= specialEdges[edge]
-                        if edgename[2] == "S":
-                            toFloor= int(edgename[7:])
-                            color=colorFloors[toFloor]
-                        elif edgename[2] == "E":
-                            otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
-                            print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
-                            for  otherEdge in otherEdgesElev:
-                                if not otherEdge == edge:
-                                    toFloor= int(specialEdges[otherEdge][5:])
-                                    print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
-                                    color=colorFloors[toFloor]
-                        else:
-                            color='grey'
+                    # elif edge in specialEdges:
+                    #     edgename= specialEdges[edge]
+                    #     if edgename[2] == "S":
+                    #         toFloor= int(edgename[7:])
+                    #         color=colorFloors[toFloor]
+                    #     elif edgename[2] == "E":
+                    #         otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
+                    #         print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
+                    #         for  otherEdge in otherEdgesElev:
+                    #             if not otherEdge == edge:
+                    #                 toFloor= int(specialEdges[otherEdge][5:])
+                    #                 print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
+                    #                 color=colorFloors[toFloor]
+                    #     else:
+                    #         color=rainbowColors[i]
                     # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
                     #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
                     #     if specialEdges[edge][2]=="S":
                     #         #Convention, the last two numbers indicate the floor you go to
                     #     color="pink"
                     else:
-                        color="blue"
+                        color=rgb_to_string(rainbowColors[i])
 
                     startco, endco = getCoordinatesPair(edge)
                     if building0 =="CARRE 1412":
