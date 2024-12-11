@@ -510,6 +510,34 @@ def drawEdgesInFloorplans(edges, vdum):
             testfilename= f"\\testingMoreFloors3{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
+def constructTrail(edges):
+    nedges= len(edges)
+    trail=[]
+    node_neighbors = defaultdict(list)
+    for i, j in edges:
+        if i != vdum and j != vdum:
+            node_neighbors[i].append(j)
+            node_neighbors[j].append(i)
+        else:
+            edges.remove((i,j))
+
+    for node, neighbs in node_neighbors.items():
+        if len(neighbs)==1:
+            # We found a start!
+            currentNode= node
+            break
+
+    while len(trail)<nedges:
+        neighbs= node_neighbors[currentNode]
+        if len(neighbs)==1:
+            trail.append((currentNode, neighbs[0]))
+            node_neighbors[currentNode].remove(neighbs[0])
+            node_neighbors[neighbs[0]].remove(currentNode)
+        else:
+            #loop over the neighbours that can still be visited, and check if it is a bridge, if one is not a bridge
+            # take that one. else take the bridge, and continue until the trail covered all edges. Should work
+            print(f'Left to do!')
+
 
 model, varshall, varsdegree = runModel(hallways, vdum)
 lengthLongestTrail=model.getAttr('ObjVal')
