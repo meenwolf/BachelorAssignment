@@ -12,7 +12,7 @@ from collections import defaultdict
 from itertools import combinations
 import re
 import math
-
+from copy import deepcopy
 #Define colors for the different floors you can go to in the result
 colorFloors=["pink","palevioletred",'deeppink','firebrick','orangered','orange','gold', 'lawngreen','green','darkcyan','cyan'
              'steelblue', 'rebeccapurple', 'purple', 'fuchsia']
@@ -126,7 +126,7 @@ for v1,v2 in hallways.keys():
     neighbours[v1].add(v2)
     neighbours[v2].add(v1)
 
-neighboursnew=neighbours
+neighboursnew=deepcopy(neighbours)
 #Connect special paths, elevators first:
 #CONVENTION CHANGE: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
 # So old version: CRE11 now becomes CRE0101 and CRE25 is now CRE0205, so that in horst, or buildings with more than
@@ -176,7 +176,7 @@ for pathname, pathinfo in specialPaths.items():
         print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
 
-
+print(f"Before reassigning: og and new the same? {neighbours==neighboursnew}")
 print(f"the neighbourhoods are: {neighbours}")
 #Now define functions needed to find the longest route.
 neighboursold= neighbours
@@ -246,9 +246,10 @@ class TSPCallback:
         #     model.cbLazy(
         #         quicksum([self.x[edge] for edge in edgeCutS])
         #         >= 2)
-def runModel(halls, nvdum):
-    m = Model()
+def runModel(halls, nvdum, maxtime):
 
+    m = Model()
+    m.Params.TimeLimit = maxtime
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
 
@@ -432,73 +433,81 @@ def getRainbowColors(NwantedColors):
 def rgb_to_string(rgb_tuple):
     return f"rgb({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]})"
 
-def drawEdgesInFloorplans(edges, vdum):
+def drawEdgesInFloorplans(edges):
     #first get the start and end of the trail
-    startend = []
-    for i, j in edges:
-        if j == vdum:
-            startend.append(i)
+    # startend = []
+    # for i, j in edges:
+    #     if j == vdum:
+    #         startend.append(i)
     # Add the paths to the roots
     # specialVertices= getSpecialUsedVertices(edges)
     rainbowColors= getRainbowColors(len(edges))
+    startedge= edges[0]
+    endedge= edges[-1]
 
     for i,edge in enumerate(edges):
-        if vdum not in edge:
-            building0, floor0= getBuildingFloor(edge[0])
-            building1, floor1= getBuildingFloor(edge[1])
-            #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
-            if building0==building1:
-                #Check if we are on the same floor, if not, we take a staircase or elevator.
-                if floor0==floor1:
-                    #Now we can draw the lines in the floor plan.
-                    if startend[0] in edge:
-                        color="saddlebrown"
-                    elif startend[1] in edge:
-                        color="saddlebrown"
-                    # elif edge in specialEdges:
-                    #     edgename= specialEdges[edge]
-                    #     if edgename[2] == "S":
-                    #         toFloor= int(edgename[7:])
-                    #         color=colorFloors[toFloor]
-                    #     elif edgename[2] == "E":
-                    #         otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
-                    #         print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
-                    #         for  otherEdge in otherEdgesElev:
-                    #             if not otherEdge == edge:
-                    #                 toFloor= int(specialEdges[otherEdge][5:])
-                    #                 print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
-                    #                 color=colorFloors[toFloor]
-                    #     else:
-                    #         color=rainbowColors[i]
-                    # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
-                    #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
-                    #     if specialEdges[edge][2]=="S":
-                    #         #Convention, the last two numbers indicate the floor you go to
-                    #     color="pink"
-                    else:
-                        color=rgb_to_string(rainbowColors[i])
+        # if vdum not in edge:
+        building0, floor0= getBuildingFloor(edge[0])
+        building1, floor1= getBuildingFloor(edge[1])
+        #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
+        if building0==building1:
+            #Check if we are on the same floor, if not, we take a staircase or elevator.
+            if floor0==floor1:
+                #Now we can draw the lines in the floor plan.
+                if startedge == edge:
+                    color="saddlebrown"
+                elif endedge == edge:
+                    color="saddlebrown"
+                # elif edge in specialEdges:
+                #     edgename= specialEdges[edge]
+                #     if edgename[2] == "S":
+                #         toFloor= int(edgename[7:])
+                #         color=colorFloors[toFloor]
+                #     elif edgename[2] == "E":
+                #         otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
+                #         print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
+                #         for  otherEdge in otherEdgesElev:
+                #             if not otherEdge == edge:
+                #                 toFloor= int(specialEdges[otherEdge][5:])
+                #                 print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
+                #                 color=colorFloors[toFloor]
+                #     else:
+                #         color=rainbowColors[i]
+                # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
+                #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
+                #     if specialEdges[edge][2]=="S":
+                #         #Convention, the last two numbers indicate the floor you go to
+                #     color="pink"
+                else:
+                    color=rgb_to_string(rainbowColors[i])
 
-                    startco, endco = getCoordinatesPair(edge)
-                    if building0 =="CARRE 1412":
-                        if floor0 == '4':
-                            startco=startco +126.822+ 494.891j
-                            endco=endco +126.822+ 494.891j
-                    new_path_element = ET.Element("path", attrib={
-                        "d": Path(Line(start=startco, end=endco)).d(),
-                        "stroke": color,
-                        "fill": "none",
-                        "stroke-width": "2"
-                    })
-                    thisRoot= figuresResultBuildings[building0][floor0]['root']
-                    thisRoot.append(new_path_element)
+                startco, endco = getCoordinatesPair(edge)
+                if building0 =="CARRE 1412":
+                    if floor0 == '4':
+                        startco=startco +126.822+ 494.891j
+                        endco=endco +126.822+ 494.891j
+                new_path_element = ET.Element("path", attrib={
+                    "d": Path(Line(start=startco, end=endco)).d(),
+                    "stroke": color,
+                    "fill": "none",
+                    "stroke-width": "2"
+                })
+                thisRoot= figuresResultBuildings[building0][floor0]['root']
+                thisRoot.append(new_path_element)
 
-                    #Maybe different colorings if we take an elevator, stair up, stair down, another building?
-                elif floor0<floor1:
+                #Maybe different colorings if we take an elevator, stair up, stair down, another building?
+            elif int(floor0)<int(floor1):
+                if int(floor0)+1 == int(floor1):
                     print(f"We take stairs up")
                 else:
-                    print(f"We take stairs down")
+                    print(f"We take elevator up to floor{floor1}")
             else:
-                print(f"We go from {building0} to {building1}")
+                if int(floor0)-1 == int(floor1):
+                    print(f"We take stairs down")
+                else:
+                    print(f"We take elevator down to floor{floor1}")
+        else:
+            print(f"We go from {building0} to {building1}")
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
@@ -510,16 +519,25 @@ def drawEdgesInFloorplans(edges, vdum):
             testfilename= f"\\testingMoreFloors3{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
-def constructTrail(edges):
+def constructTrail(edges,vdum):
+    print(f"{len(edges)} edges:{edges}")
     nedges= len(edges)
     trail=[]
     node_neighbors = defaultdict(list)
+    #Get the neighbourhoods of the induced graph by the edges, but not considering the dummy vertex and dummy edges
+    dummyEdges=[]
     for i, j in edges:
         if i != vdum and j != vdum:
             node_neighbors[i].append(j)
             node_neighbors[j].append(i)
         else:
-            edges.remove((i,j))
+            dummyEdges.append((i,j))
+            dummyEdges.append((j,i))
+    # Remove the dummy edges from the used edges
+    for edge in dummyEdges:
+        if edge in edges:
+            edges.remove(edge)
+
 
     for node, neighbs in node_neighbors.items():
         if len(neighbs)==1:
@@ -527,21 +545,69 @@ def constructTrail(edges):
             currentNode= node
             break
 
-    while len(trail)<nedges:
+    while len(trail)<nedges-2:
         neighbs= node_neighbors[currentNode]
+        print(f"The {len(neighbs)} neihgbours of  vertex {currentNode} are: {neighbs}\n"
+              f"for neighbourhoodkeys:{node_neighbors.keys()}")
         if len(neighbs)==1:
-            trail.append((currentNode, neighbs[0]))
-            node_neighbors[currentNode].remove(neighbs[0])
-            node_neighbors[neighbs[0]].remove(currentNode)
+            vertex= neighbs[0]
+            trail.append((currentNode,vertex))
+            print(f"neighborhood of currrent node: {node_neighbors[currentNode] if currentNode in node_neighbors.keys() else FALSE}\n")
+            print(f"now we want to remove {vertex} from {node_neighbors[currentNode]}")
+            print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
+
+            node_neighbors[currentNode].remove(vertex)
+            print(f"neighbourhoodkeys are now: {node_neighbors.keys()}\n")
+            node_neighbors[vertex].remove(currentNode)
+            print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
+            currentNode= vertex
+        elif len(neighbs)==0:
+            print(f"zero neighbours , len trail: {len(trail)} and len edges:{len(edges)}")
+            break
         else:
+            for vertex in neighbs:
+                if (currentNode, vertex) in edges:
+                    edgeToConsider= (currentNode, vertex)
+                elif (vertex, currentNode) in edges:
+                    edgeToConsider= (vertex, currentNode)
+                else:
+                    print(f"ERROR: vertex {vertex} is a neighbour of current node {currentNode} but no edge is in the edge set")
+                print(f"check if this edge is a bridge")
+                nReachableBefore= getReachable(node_neighbors, currentNode)
+                node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+                node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
+                nReachableAfter= getReachable(node_neighbors, currentNode)
+                if nReachableAfter< nReachableBefore:
+                    print(f"edge {edgeToConsider} is a bridge so look for the next after adding the vertices back to nodeneighbours")
+                    node_neighbors[edgeToConsider[0]].append(edgeToConsider[1])
+                    node_neighbors[edgeToConsider[1]].append(edgeToConsider[0])
+
+                else:
+                    print(f"edge{edgeToConsider} is not a bridge, so we can take this one")
+                    print(f"we found a non bridge, which is saved in edgetoconsider:{edgeToConsider}, with "
+                          f"current node:{currentNode} and next node:{vertex}\n"
+                          f" and already removed from node_neighbors, so take that bridge and continue")
+                    edges.remove(edgeToConsider)
+                    trail.append((currentNode, vertex))
+                    currentNode=vertex
+                    break
+            if not currentNode == vertex:
+                print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
+                break
+    return trail
+
+
+
             #loop over the neighbours that can still be visited, and check if it is a bridge, if one is not a bridge
             # take that one. else take the bridge, and continue until the trail covered all edges. Should work
-            print(f'Left to do!')
 
 
-model, varshall, varsdegree = runModel(hallways, vdum)
+model, varshall, varsdegree = runModel(hallways, vdum, 10)
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
+print(f"we have {vdum} as dummy vertex")
+print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
 pprint(f"The used edges in the solution are:\n{used_edges}")
-drawEdgesInFloorplans(used_edges, vdum)
+trailresult= constructTrail(used_edges, vdum)
+drawEdgesInFloorplans(trailresult)
