@@ -636,22 +636,21 @@ def constructTrail(edges,vdum):
 
     while len(trail)<nedges-2:
         neighbs= node_neighbors[currentNode]
-        print(f"The {len(neighbs)} neihgbours of  vertex {currentNode} are: {neighbs}\n"
-              f"for neighbourhoodkeys:{node_neighbors.keys()}")
+        # print(f"The {len(neighbs)} neihgbours of  vertex {currentNode} are: {neighbs}\n"
+        #       f"for neighbourhoodkeys:{node_neighbors.keys()}")
         if len(neighbs)==1:
             vertex= neighbs[0]
             trail.append((currentNode,vertex))
-            print(f"neighborhood of currrent node: {node_neighbors[currentNode] if currentNode in node_neighbors.keys() else FALSE}\n")
-            print(f"now we want to remove {vertex} from {node_neighbors[currentNode]}")
-            print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
+            # print(f"neighborhood of currrent node: {node_neighbors[currentNode] if currentNode in node_neighbors.keys() else FALSE}\n")
+            # print(f"now we want to remove {vertex} from {node_neighbors[currentNode]}")
+            # print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
 
             node_neighbors[currentNode].remove(vertex)
-            print(f"neighbourhoodkeys are now: {node_neighbors.keys()}\n")
+            # print(f"neighbourhoodkeys are now: {node_neighbors.keys()}\n")
             node_neighbors[vertex].remove(currentNode)
-            print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
+            # print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
             currentNode= vertex
         elif len(neighbs)==0:
-            print(f"zero neighbours , len trail: {len(trail)} and len edges:{len(edges)}")
             break
         else:
             for vertex in neighbs:
