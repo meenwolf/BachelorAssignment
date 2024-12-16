@@ -1,6 +1,7 @@
 import os
 from os.path import split
 
+from bokeh.colors.named import saddlebrown
 from networkx.classes import neighbors
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
@@ -507,15 +508,16 @@ def drawEdgesInFloorplans(edges):
 
                             print(f"Found it , so we step into the elevator")
                             toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
-                            drawCoord = nodeToCoordinate[edge[0]]['Location']
+                            drawCoord = nodeToCoordinate[edge[1]]['Location']
                             if building0 == "CARRE 1412":
                                 if floor0 == '4':
                                     drawCoord = drawCoord + 126.822 + 494.891j
                             text_element = ET.Element("text", attrib={
                                 "x": str(drawCoord.real),
                                 "y": str(drawCoord.imag),
-                                "font-size": "16",  # Font size in pixels
-                                "fill": color  # Text color
+                                "font-size": "20",  # Font size in pixels
+                                "fill": "saddlebrown"  # Text color
+
                             })
                             text_element.text = str(toFloor)
                             thisRoot = figuresResultBuildings[building0][floor0]['root']
@@ -572,8 +574,8 @@ def drawEdgesInFloorplans(edges):
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "16",  # Font size in pixels
-                    "fill": color  # Text color
+                    "font-size": "20",  # Font size in pixels
+                    "fill": "saddlebrown"  # Text color
                 })
                 text_element.text = str(toFloor)
                 thisRoot = figuresResultBuildings[building0][floor0]['root']
