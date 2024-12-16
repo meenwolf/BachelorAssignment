@@ -13,6 +13,9 @@ from itertools import combinations
 import re
 import math
 from copy import deepcopy
+
+from TrialExtractSVG import neighbours
+
 #Define colors for the different floors you can go to in the result
 colorFloors=["pink","palevioletred",'deeppink','firebrick','orangered','orange','gold', 'lawngreen','green','darkcyan','cyan'
              'steelblue', 'rebeccapurple', 'purple', 'fuchsia']
@@ -123,25 +126,19 @@ pprint(specialPaths)
 print("The hallways are:")
 pprint(hallways)
 
-# Add hallways to the dummy vertex:
-vdum= nextnode
-nextnode += 1
-
-for i in range(nextnode):
-    hallways[(vdum, i)]=0
-
 # define a dictionary where each vertex maps to a set of its neighbours
-neighbours={i:{vdum} for i in range(vdum)}
-neighbours[vdum]=set(range(vdum))
-for v1,v2 in hallways.keys():
-    neighbours[v1].add(v2)
-    neighbours[v2].add(v1)
+neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
 
-neighboursnew=deepcopy(neighbours)
+for v1,v2 in hallways.keys():
+    neighboursold[v1].add(v2)
+    neighboursold[v2].add(v1)
+
+neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
+# Connections regarding staircases, elevators and connections between buildings
+
 #Connect special paths, elevators first:
-#CONVENTION CHANGE: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
-# So old version: CRE11 now becomes CRE0101 and CRE25 is now CRE0205, so that in horst, or buildings with more than
-# 10 staircases, elevators or exits, the same code can be used
+#CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
+
 def findSingleEnd(specialedge,neighbourhood): #uses the global variables specialPaths
     Nstart = len(neighbourhood[specialPaths[specialedge]["Start"]["Vnum"]])
     Nend = len(neighbourhood[specialPaths[specialedge]["End"]["Vnum"]])
@@ -151,6 +148,8 @@ def findSingleEnd(specialedge,neighbourhood): #uses the global variables special
         end = specialPaths[specialedge]["End"]["Vnum"]
     return end
 
+elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
+elevatorEdges=set()
 connected=[]
 for pathname, pathinfo in specialPaths.items():
     if pathname[2]=="E": #We have an edge to an elevator
@@ -158,24 +157,28 @@ for pathname, pathinfo in specialPaths.items():
         if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
             print(startname)
             elevatorConnects=[key for key in specialPaths.keys() if startname in key]
-            for e1, e2 in combinations(elevatorConnects,2):
-                print(f"comb {e1} and {e2}")
-                end1= findSingleEnd(e1, neighbours)
-                end2= findSingleEnd(e2, neighbours)
-                hallways[(end1, end2)]=1
-                neighboursnew[end1].add(end2)
-                neighboursnew[end2].add(end1)
+            velevator= nextnode
+            elevatorVertices[startname]=velevator
+            nextnode+=1
+            neighbours[velevator]=set()
+            for edge in elevatorConnects:
+                end= findSingleEnd(edge, neighboursold)
+                hallways[(end, velevator)]=1
+                elevatorEdges.add((end, velevator))
+                elevatorEdges.add((velevator,end))
+                neighbours[end].add(velevator)
+                neighbours[velevator].add(end)
             connected.append(startname)
     elif pathname[2] == "S": #We have an edge to a staircase
         if pathname not in connected: # if we have not connected these two floors with this staircase
-            end1= findSingleEnd(pathname, neighbours)
+            end1= findSingleEnd(pathname, neighboursold)
             otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
             if otherSide in specialPaths:
                 print(f"original stair:{pathname}, other side:{otherSide}")
-                end2=findSingleEnd(otherSide, neighbours)
+                end2=findSingleEnd(otherSide, neighboursold)
                 hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
-                neighboursnew[end1].add(end2)
-                neighboursnew[end2].add(end1)
+                neighbours[end1].add(end2)
+                neighbours[end2].add(end1)
                 connected.append(pathname)
                 connected.append(otherSide)
     elif pathname[2] == "C": #connecting buildings? naming conv?
@@ -186,13 +189,19 @@ for pathname, pathinfo in specialPaths.items():
     else:
         print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
+# Add hallways to the dummy vertex:
+vdum= nextnode
+nextnode += 1
 
-print(f"Before reassigning: og and new the same? {neighbours==neighboursnew}")
-print(f"the neighbourhoods are: {neighbours}")
-#Now define functions needed to find the longest route.
-neighboursold= neighbours
-neighbours=neighboursnew
-print(f"neighbours old is new? {neighboursold==neighbours}")
+neighbours[vdum]= set(range(vdum))
+
+for i in range(nextnode):
+    hallways[(vdum, i)]=0
+    neighbours[i].add(vdum)
+
+
+print(f"Neighbours old is new? {neighboursold==neighbours}")
+
 def getReachable(neighborhoods, start, reachable=None):
     if reachable==None:
         reachable={start}
@@ -285,6 +294,10 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
     for i in range(nvdum):
         m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
+
+    # Add the constraint that forbids you to use an elevator multiple times:
+    for name, vertex in elevatorVertices.items():
+        m.addConstr(varsaux[vertex]<= 1, name=f'visit{name}AtMostOnce')
 
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
@@ -463,6 +476,8 @@ def drawEdgesInFloorplans(edges):
 
     for i,edge in enumerate(edges):
         # if vdum not in edge:
+        if edge in elevatorEdges:
+            continue
         building0, floor0= getBuildingFloor(edge[0])
         building1, floor1= getBuildingFloor(edge[1])
         #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
@@ -474,21 +489,38 @@ def drawEdgesInFloorplans(edges):
                     color="saddlebrown"
                 elif endedge == edge:
                     color="saddlebrown"
-                # elif edge in specialEdges:
-                #     edgename= specialEdges[edge]
-                #     if edgename[2] == "S":
-                #         toFloor= int(edgename[7:])
-                #         color=colorFloors[toFloor]
-                #     elif edgename[2] == "E":
-                #         otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
-                #         print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
-                #         for  otherEdge in otherEdgesElev:
-                #             if not otherEdge == edge:
-                #                 toFloor= int(specialEdges[otherEdge][5:])
-                #                 print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
-                #                 color=colorFloors[toFloor]
-                #     else:
-                #         color=rainbowColors[i]
+                    #     toFloor= int(edgename[7:])
+                    #     color=colorFloors[toFloor]
+                    # elif edgename[2] == "E":
+                    #     otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
+                    #     print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
+                    #     for  otherEdge in otherEdgesElev:
+                    #         if not otherEdge == edge:
+                    #             toFloor= int(specialEdges[otherEdge][5:])
+                    #             print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
+                    #             color=colorFloors[toFloor]
+                elif edge in specialEdges:
+                    color = rgb_to_string(rainbowColors[i])
+                    if specialEdges[edge][2]=="E":
+                        print(f"We found elevator connection")
+                        if edges[i+1] in elevatorEdges:
+
+                            print(f"Found it , so we step into the elevator")
+                            toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
+                            drawCoord = nodeToCoordinate[edge[0]]['Location']
+                            if building0 == "CARRE 1412":
+                                if floor0 == '4':
+                                    drawCoord = drawCoord + 126.822 + 494.891j
+                            text_element = ET.Element("text", attrib={
+                                "x": str(drawCoord.real),
+                                "y": str(drawCoord.imag),
+                                "font-size": "16",  # Font size in pixels
+                                "fill": color  # Text color
+                            })
+                            text_element.text = str(toFloor)
+                            thisRoot = figuresResultBuildings[building0][floor0]['root']
+                            thisRoot.append(text_element)
+
                 # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
                 #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
                 #     if specialEdges[edge][2]=="S":
@@ -509,11 +541,6 @@ def drawEdgesInFloorplans(edges):
                     "stroke-width": "2"
                 })
                 thisRoot= figuresResultBuildings[building0][floor0]['root']
-                if "viewBox" not in thisRoot.attrib:
-                    # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
-                    print(f"in floor: {floor0} there is no viewbox")
-                else:
-                    print(f"in floor: {floor0} there is a viewbox")
                 thisRoot.append(new_path_element)
 
                 #Maybe different colorings if we take an elevator, stair up, stair down, another building?
@@ -534,7 +561,8 @@ def drawEdgesInFloorplans(edges):
             #     text_element.text = floor1
             else: # Print the number of the floor we draw to on the coordinate of the point we start in
                 # else:
-                #     print(f"We take elevator down to floor{floor1}")
+
+                print(f"We take elevator down to floor{floor1}")
                 color = rgb_to_string(rainbowColors[i])
                 toFloor = nodeToCoordinate[edge[1]]['Floor']
                 drawCoord = nodeToCoordinate[edge[0]]['Location']
@@ -547,13 +575,8 @@ def drawEdgesInFloorplans(edges):
                     "font-size": "16",  # Font size in pixels
                     "fill": color  # Text color
                 })
-                text_element.text = toFloor
+                text_element.text = str(toFloor)
                 thisRoot = figuresResultBuildings[building0][floor0]['root']
-                if "viewBox" not in thisRoot.attrib:
-                    # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
-                    print(f"in floor: {floor0} there is no viewbox")
-                else:
-                    print(f"in floor: {floor0} there is a viewbox")
                 thisRoot.append(text_element)
         else:
             print(f"We go from {building0} to {building1}")
@@ -571,11 +594,6 @@ def drawEdgesInFloorplans(edges):
             })
             text_element.text = toBuild
             thisRoot = figuresResultBuildings[building0][floor0]['root']
-            if "viewBox" not in thisRoot.attrib:
-                # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
-                print(f"BRIDGE: in floor: {floor0} there is no viewbox")
-            else:
-                print(f"BRIDGE: in floor: {floor0} there is a viewbox")
             thisRoot.append(text_element)
 
     # Draw the figures in a new file:
@@ -671,7 +689,7 @@ def constructTrail(edges,vdum):
             # take that one. else take the bridge, and continue until the trail covered all edges. Should work
 
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.1, printtime= 5)
+model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.3, printtime= 5)
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
