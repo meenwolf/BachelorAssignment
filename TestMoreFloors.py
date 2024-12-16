@@ -51,6 +51,17 @@ for building in os.listdir(PATH_drawings):
 
             tree = ET.parse(newFigurePath)
             root = tree.getroot()
+            # Get or set width and height
+            # Ensure viewBox is present
+            if "viewBox" not in root.attrib:
+                # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
+                print(f"in file: {file} there is no viewbox")
+            else:
+                print(f"in file: {file} there is a viewbox")
+            root.attrib["width"] = "100%"
+            root.attrib["height"] = "100%"
+            # Save the fixed file
+            # tree.write(output_file)
             ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
             if building in figuresResultBuildings:
                 figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
@@ -246,10 +257,15 @@ class TSPCallback:
         #     model.cbLazy(
         #         quicksum([self.x[edge] for edge in edgeCutS])
         #         >= 2)
-def runModel(halls, nvdum, maxtime):
+def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
 
     m = Model()
-    m.Params.TimeLimit = maxtime
+    if maxtime != None:
+        m.Params.TimeLimit = maxtime
+    if maxgap!=None:
+        m.Params.MIPGap= maxgap
+    if printtime!=None:
+        m.Params.DisplayInterval= printtime
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
 
@@ -493,21 +509,74 @@ def drawEdgesInFloorplans(edges):
                     "stroke-width": "2"
                 })
                 thisRoot= figuresResultBuildings[building0][floor0]['root']
+                if "viewBox" not in thisRoot.attrib:
+                    # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
+                    print(f"in floor: {floor0} there is no viewbox")
+                else:
+                    print(f"in floor: {floor0} there is a viewbox")
                 thisRoot.append(new_path_element)
 
                 #Maybe different colorings if we take an elevator, stair up, stair down, another building?
-            elif int(floor0)<int(floor1):
-                if int(floor0)+1 == int(floor1):
-                    print(f"We take stairs up")
+            # elif int(floor0)<int(floor1):
+            #     if int(floor0)+1 == int(floor1):
+            #         print(f"We take stairs up")
+            #     else:
+            #         print(f"We take elevator up to floor{floor1}")
+            #     # Create a new <text> element
+            #     toFloor=nodeToCoordinate[edge[1]]['Floor']
+            #     drawCoord= nodeToCoordinate[edge[0]]['Location']
+            #     text_element = ET.Element("text", attrib={
+            #         "x": drawCoord.real,
+            #         "y": drawCoord.imag,
+            #         "font-size": "16",  # Font size in pixels
+            #         "fill": "dimgray"  # Text color
+            #     })
+            #     text_element.text = floor1
+            else: # Print the number of the floor we draw to on the coordinate of the point we start in
+                # else:
+                #     print(f"We take elevator down to floor{floor1}")
+                color = rgb_to_string(rainbowColors[i])
+                toFloor = nodeToCoordinate[edge[1]]['Floor']
+                drawCoord = nodeToCoordinate[edge[0]]['Location']
+                if building0 =="CARRE 1412":
+                    if floor0 == '4':
+                        drawCoord=drawCoord +126.822+ 494.891j
+                text_element = ET.Element("text", attrib={
+                    "x": str(drawCoord.real),
+                    "y": str(drawCoord.imag),
+                    "font-size": "16",  # Font size in pixels
+                    "fill": color  # Text color
+                })
+                text_element.text = toFloor
+                thisRoot = figuresResultBuildings[building0][floor0]['root']
+                if "viewBox" not in thisRoot.attrib:
+                    # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
+                    print(f"in floor: {floor0} there is no viewbox")
                 else:
-                    print(f"We take elevator up to floor{floor1}")
-            else:
-                if int(floor0)-1 == int(floor1):
-                    print(f"We take stairs down")
-                else:
-                    print(f"We take elevator down to floor{floor1}")
+                    print(f"in floor: {floor0} there is a viewbox")
+                thisRoot.append(text_element)
         else:
             print(f"We go from {building0} to {building1}")
+            color = rgb_to_string(rainbowColors[i])
+            toBuild = nodeToCoordinate[edge[1]]['Building']
+            drawCoord = nodeToCoordinate[edge[0]]['Location']
+            if building0 == "CARRE 1412":
+                if floor0 == '4':
+                    drawCoord = drawCoord + 126.822 + 494.891j
+            text_element = ET.Element("text", attrib={
+                "x": str(drawCoord.real),
+                "y": str(drawCoord.imag),
+                "font-size": "16",  # Font size in pixels
+                "fill": color  # Text color
+            })
+            text_element.text = toBuild
+            thisRoot = figuresResultBuildings[building0][floor0]['root']
+            if "viewBox" not in thisRoot.attrib:
+                # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
+                print(f"BRIDGE: in floor: {floor0} there is no viewbox")
+            else:
+                print(f"BRIDGE: in floor: {floor0} there is a viewbox")
+            thisRoot.append(text_element)
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
@@ -602,7 +671,7 @@ def constructTrail(edges,vdum):
             # take that one. else take the bridge, and continue until the trail covered all edges. Should work
 
 
-model, varshall, varsdegree = runModel(hallways, vdum, 10)
+model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.1, printtime= 5)
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
