@@ -17,10 +17,6 @@ from copy import deepcopy
 
 from TrialExtractSVG import neighbours
 
-#Define colors for the different floors you can go to in the result
-colorFloors=["pink","palevioletred",'deeppink','firebrick','orangered','orange','gold', 'lawngreen','green','darkcyan','cyan'
-             'steelblue', 'rebeccapurple', 'purple', 'fuchsia']
-
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
 PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
@@ -32,7 +28,6 @@ PATH_result= PATH_test+"\\ResultPaths"
 # Initiate some data structures to save information in
 nodeToCoordinate={}
 coordinateToNode={}
-maxVnum={}# keys are maximum numbers, value is a tuple of (building, floor) where this is the maximum vnum of
 
 nextnode=0
 
@@ -49,24 +44,16 @@ for building in os.listdir(PATH_drawings):
     for file in listOfFiles:
         if file.endswith(".svg"):
             floor= file.split('.')[1]
-            # if floor=='3':
-            #     continue
             newFigurePath = buildingEmpty + f"\\{file}"
 
             tree = ET.parse(newFigurePath)
             root = tree.getroot()
-            # Get or set width and height
-            # Ensure viewBox is present
-            if "viewBox" not in root.attrib:
-                # root.attrib["viewBox"] = f"0 0 {width.replace('mm', '')} {height.replace('mm', '')}"
-                print(f"in file: {file} there is no viewbox")
-            else:
-                print(f"in file: {file} there is a viewbox")
+
+            # Set the width and height to prevent the result file to be of A4 size or in any case not showing the final result in microsoft edge(in inkscape it still showed the correct file)
             root.attrib["width"] = "100%"
             root.attrib["height"] = "100%"
-            # Save the fixed file
-            # tree.write(output_file)
             ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+
             if building in figuresResultBuildings:
                 figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
             else:
@@ -127,7 +114,7 @@ pprint(specialPaths)
 print("The hallways are:")
 pprint(hallways)
 
-# define a dictionary where each vertex maps to a set of its neighbours
+# Define a dictionary where each vertex maps to a set of its neighbours
 neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
 
 for v1,v2 in hallways.keys():
@@ -263,10 +250,7 @@ class TSPCallback:
             model.cbLazy(
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
-        # if len(edgesNotS) >0:
-        #     model.cbLazy(
-        #         quicksum([self.x[edge] for edge in edgeCutS])
-        #         >= 2)
+
 def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
 
     m = Model()
@@ -311,6 +295,7 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
 
 #Retreive final values for the varshall: hallway variables and print them
 def getEdgesResult(model, varssol):
+    #Only get the edges that have a value x_e >0.5, namely about 1.
     sol = model.getAttr('X', varssol)
     edges = set()
     for key, value in sol.items():
@@ -333,13 +318,6 @@ def splitNameNumber(buildingNo):
     print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
     return res[0], res[1]
 
-# def getSpecialUsedVertices(used_edges):
-#     specialVertices={}
-#     for edge in used_edges:
-#         if edge in specialEdges:
-#             specialVertices[edge[0]]=
-#             specialVertices.append(edge[1])
-#     return specialVertices
 
 def getRainbowColors(NwantedColors):
     startred= 150 #to take bordeaux/dark red into account
@@ -351,6 +329,7 @@ def getRainbowColors(NwantedColors):
     red=startred
     green=0
     blue=0
+
     while red < 255:
         colors.append((red,green,blue))
         red+=1
@@ -389,7 +368,6 @@ def getRainbowColors(NwantedColors):
         blue +=1
         green += 1.64
 
-    #toRed: startred,0,0 to 255,0,0
     Red= 255- startred # possible reds, increase red value by 1 for each color
     Orange = maxgreen  # to go from red to orange, increase green value by 1 this many times
     Yellow= 255 # yellow tones, remove red by 1 for each color
@@ -402,6 +380,7 @@ def getRainbowColors(NwantedColors):
     NpossibleColors= Red+Orange+Yellow+Green+Lightblue+Blue+Purple+Magenta+Lightpink
 
     colors=[]
+
     #Calculate how many of these colors need to be added to the colorgrid
     nred= math.ceil(Red/NpossibleColors*NwantedColors)
     norange= math.ceil(Orange/NpossibleColors*NwantedColors)
@@ -464,78 +443,65 @@ def rgb_to_string(rgb_tuple):
     return f"rgb({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]})"
 
 def drawEdgesInFloorplans(edges):
-    #first get the start and end of the trail
-    # startend = []
-    # for i, j in edges:
-    #     if j == vdum:
-    #         startend.append(i)
-    # Add the paths to the roots
-    # specialVertices= getSpecialUsedVertices(edges)
     rainbowColors= getRainbowColors(len(edges))
     startedge= edges[0]
     endedge= edges[-1]
 
     for i,edge in enumerate(edges):
-        # if vdum not in edge:
         if edge in elevatorEdges:
+            # We can not draw this line in a floor plan
             continue
         building0, floor0= getBuildingFloor(edge[0])
         building1, floor1= getBuildingFloor(edge[1])
+
         #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
         if building0==building1:
             #Check if we are on the same floor, if not, we take a staircase or elevator.
             if floor0==floor1:
                 #Now we can draw the lines in the floor plan.
                 if startedge == edge:
+                    #To indicate an endpoint of the trail
                     color="saddlebrown"
                 elif endedge == edge:
+                    #To indicate an endpoint of the trail
                     color="saddlebrown"
-                    #     toFloor= int(edgename[7:])
-                    #     color=colorFloors[toFloor]
-                    # elif edgename[2] == "E":
-                    #     otherEdgesElev=[key for key in specialEdges.keys() if specialEdges[key][:5]==edgename[:5]]
-                    #     print(f"we have this many times that we take elevator:{edgename[:5]}:{len(otherEdgesElev)}")
-                    #     for  otherEdge in otherEdgesElev:
-                    #         if not otherEdge == edge:
-                    #             toFloor= int(specialEdges[otherEdge][5:])
-                    #             print(f"we take elevator from floor:{int(edgename[5:])}:{toFloor}")
-                    #             color=colorFloors[toFloor]
+
                 elif edge in specialEdges:
+                    # Otherwise, we color this edge according to the fading rainbow
                     color = rgb_to_string(rainbowColors[i])
                     if specialEdges[edge][2]=="E":
-                        print(f"We found elevator connection")
+                        # We found elevator connection for which we might need to print a number
                         if edges[i+1] in elevatorEdges:
-
-                            print(f"Found it , so we step into the elevator")
+                            # We step into the elevator so we need to print a number
                             toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
                             drawCoord = nodeToCoordinate[edge[1]]['Location']
+
                             if building0 == "CARRE 1412":
-                                if floor0 == '4':
+                                if floor0 == '4':# since this floor had a weird shift in it
                                     drawCoord = drawCoord + 126.822 + 494.891j
+
+                            # Add the number
                             text_element = ET.Element("text", attrib={
                                 "x": str(drawCoord.real),
                                 "y": str(drawCoord.imag),
-                                "font-size": "20",  # Font size in pixels
-                                "fill": "saddlebrown"  # Text color
-
+                                "font-size": "24",  # Font size in pixels
+                                "fill": "saddlebrown",  # Text color
+                                "stroke": "saddlebrown"
                             })
                             text_element.text = str(toFloor)
                             thisRoot = figuresResultBuildings[building0][floor0]['root']
                             thisRoot.append(text_element)
 
-                # elif (edge[0] in specialVertices) or (edge[1] in specialVertices):
-                #     print(f"We might want to color to which floor we are taking the stairs? or elevator?")
-                #     if specialEdges[edge][2]=="S":
-                #         #Convention, the last two numbers indicate the floor you go to
-                #     color="pink"
                 else:
+                    # Normal edges are also colored according to the fading rainbow.
                     color=rgb_to_string(rainbowColors[i])
-
+                # Get the coordinates to draw a line connecting them in the correct floor plan
                 startco, endco = getCoordinatesPair(edge)
                 if building0 =="CARRE 1412":
-                    if floor0 == '4':
+                    if floor0 == '4': # since this floor had a weird shift in it
                         startco=startco +126.822+ 494.891j
                         endco=endco +126.822+ 494.891j
+
                 new_path_element = ET.Element("path", attrib={
                     "d": Path(Line(start=startco, end=endco)).d(),
                     "stroke": color,
@@ -545,54 +511,39 @@ def drawEdgesInFloorplans(edges):
                 thisRoot= figuresResultBuildings[building0][floor0]['root']
                 thisRoot.append(new_path_element)
 
-                #Maybe different colorings if we take an elevator, stair up, stair down, another building?
-            # elif int(floor0)<int(floor1):
-            #     if int(floor0)+1 == int(floor1):
-            #         print(f"We take stairs up")
-            #     else:
-            #         print(f"We take elevator up to floor{floor1}")
-            #     # Create a new <text> element
-            #     toFloor=nodeToCoordinate[edge[1]]['Floor']
-            #     drawCoord= nodeToCoordinate[edge[0]]['Location']
-            #     text_element = ET.Element("text", attrib={
-            #         "x": drawCoord.real,
-            #         "y": drawCoord.imag,
-            #         "font-size": "16",  # Font size in pixels
-            #         "fill": "dimgray"  # Text color
-            #     })
-            #     text_element.text = floor1
-            else: # Print the number of the floor we draw to on the coordinate of the point we start in
-                # else:
 
-                print(f"We take elevator down to floor{floor1}")
-                color = rgb_to_string(rainbowColors[i])
+            else: # We have a staircase edge, so we include the number of the floor we go to in the floor plan
+                # Print the number of the floor we draw to on the coordinate of the point we start in
                 toFloor = nodeToCoordinate[edge[1]]['Floor']
                 drawCoord = nodeToCoordinate[edge[0]]['Location']
                 if building0 =="CARRE 1412":
-                    if floor0 == '4':
+                    if floor0 == '4': # since this floor had a weird shift in it
                         drawCoord=drawCoord +126.822+ 494.891j
+
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "20",  # Font size in pixels
-                    "fill": "saddlebrown"  # Text color
+                    "font-size": "24",  # Font size in pixels
+                    "fill": "saddlebrown",  # Text color
+                    "stroke": "saddlebrown"
                 })
                 text_element.text = str(toFloor)
                 thisRoot = figuresResultBuildings[building0][floor0]['root']
                 thisRoot.append(text_element)
         else:
-            print(f"We go from {building0} to {building1}")
-            color = rgb_to_string(rainbowColors[i])
+            # We go from building0 to building1
             toBuild = nodeToCoordinate[edge[1]]['Building']
             drawCoord = nodeToCoordinate[edge[0]]['Location']
             if building0 == "CARRE 1412":
-                if floor0 == '4':
+                if floor0 == '4': # since this floor had a weird shift in it
                     drawCoord = drawCoord + 126.822 + 494.891j
+
             text_element = ET.Element("text", attrib={
                 "x": str(drawCoord.real),
                 "y": str(drawCoord.imag),
-                "font-size": "16",  # Font size in pixels
-                "fill": color  # Text color
+                "font-size": "24",  # Font size in pixels
+                "fill": "saddlebrown",  # Text color
+                "stroke": "saddlebrown"
             })
             text_element.text = toBuild
             thisRoot = figuresResultBuildings[building0][floor0]['root']
@@ -608,6 +559,7 @@ def drawEdgesInFloorplans(edges):
             testfilename= f"\\testingMoreFloors3{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
+
 def constructTrail(edges,vdum):
     print(f"{len(edges)} edges:{edges}")
     nedges= len(edges)
@@ -622,11 +574,11 @@ def constructTrail(edges,vdum):
         else:
             dummyEdges.append((i,j))
             dummyEdges.append((j,i))
+
     # Remove the dummy edges from the used edges
     for edge in dummyEdges:
         if edge in edges:
             edges.remove(edge)
-
 
     for node, neighbs in node_neighbors.items():
         if len(neighbs)==1:
@@ -636,23 +588,19 @@ def constructTrail(edges,vdum):
 
     while len(trail)<nedges-2:
         neighbs= node_neighbors[currentNode]
-        # print(f"The {len(neighbs)} neihgbours of  vertex {currentNode} are: {neighbs}\n"
-        #       f"for neighbourhoodkeys:{node_neighbors.keys()}")
-        if len(neighbs)==1:
+
+        if len(neighbs)==1: # We go to this neighbour
             vertex= neighbs[0]
             trail.append((currentNode,vertex))
-            # print(f"neighborhood of currrent node: {node_neighbors[currentNode] if currentNode in node_neighbors.keys() else FALSE}\n")
-            # print(f"now we want to remove {vertex} from {node_neighbors[currentNode]}")
-            # print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
 
             node_neighbors[currentNode].remove(vertex)
-            # print(f"neighbourhoodkeys are now: {node_neighbors.keys()}\n")
             node_neighbors[vertex].remove(currentNode)
-            # print(f"neighborhood of next node: {node_neighbors[vertex] if vertex in node_neighbors.keys() else FALSE}\n")
             currentNode= vertex
-        elif len(neighbs)==0:
+
+        elif len(neighbs)==0: # No more places to go, we used all the edges
             break
-        else:
+
+        else: # We have to loop over the vertices in the neighourhood and check if the edge to there is a bridge or not
             for vertex in neighbs:
                 if (currentNode, vertex) in edges:
                     edgeToConsider= (currentNode, vertex)
@@ -660,21 +608,20 @@ def constructTrail(edges,vdum):
                     edgeToConsider= (vertex, currentNode)
                 else:
                     print(f"ERROR: vertex {vertex} is a neighbour of current node {currentNode} but no edge is in the edge set")
-                print(f"check if this edge is a bridge")
+
+                #check if this edge is a bridge
                 nReachableBefore= getReachable(node_neighbors, currentNode)
                 node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
                 node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
                 nReachableAfter= getReachable(node_neighbors, currentNode)
-                if nReachableAfter< nReachableBefore:
-                    print(f"edge {edgeToConsider} is a bridge so look for the next after adding the vertices back to nodeneighbours")
+
+                if nReachableAfter< nReachableBefore: # It is a bridge
+                    #edge edgeToConsider is a bridge so look for the next after adding the vertices back to nodeneighbours
                     node_neighbors[edgeToConsider[0]].append(edgeToConsider[1])
                     node_neighbors[edgeToConsider[1]].append(edgeToConsider[0])
 
                 else:
-                    print(f"edge{edgeToConsider} is not a bridge, so we can take this one")
-                    print(f"we found a non bridge, which is saved in edgetoconsider:{edgeToConsider}, with "
-                          f"current node:{currentNode} and next node:{vertex}\n"
-                          f" and already removed from node_neighbors, so take that bridge and continue")
+                    # edge edgeToConsider is not a bridge, so we can take this one
                     edges.remove(edgeToConsider)
                     trail.append((currentNode, vertex))
                     currentNode=vertex
@@ -683,11 +630,6 @@ def constructTrail(edges,vdum):
                 print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
                 break
     return trail
-
-
-
-            #loop over the neighbours that can still be visited, and check if it is a bridge, if one is not a bridge
-            # take that one. else take the bridge, and continue until the trail covered all edges. Should work
 
 
 model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.3, printtime= 5)
