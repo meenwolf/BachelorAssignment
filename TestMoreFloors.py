@@ -169,9 +169,12 @@ for pathname, pathinfo in specialPaths.items():
                 neighbours[end2].add(end1)
                 connected.append(pathname)
                 connected.append(otherSide)
-    elif pathname[2] == "C": #connecting buildings? naming conv?
-        otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
-        print(f"connection building from CR:{pathname} to CR:{otherSide}")
+    elif pathname[1] in ["1","2","3"]: #connecting buildings? naming conv?
+        # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
+        print(f"connection building from CR:{pathname}")
+    elif pathname[2] == "C":
+        otherSide = pathname[4:6]+pathname[2:4]+pathname[0:2]
+        print(f"This hallway {pathname} ends at a walking bridge and the other side is: {otherSide}")
     elif pathname[2]=='X':
         print(f"we have an exit to outdoors: {pathname}")
     else:
