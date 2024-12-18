@@ -320,7 +320,7 @@ def getBuildingFloor(vnum):
 def getCoordinatesPair(vtuple):
     return nodeToCoordinate[vtuple[0]]["Location"], nodeToCoordinate[vtuple[1]]["Location"]
 
-#Get the building name and number from the a building name containing both of them with a space in between.
+#Get the building name and number from the building name containing both of them with a space in between.
 def splitNameNumber(buildingNo):
     res = buildingNo.split()
     print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
@@ -640,15 +640,15 @@ def constructTrail(edges,vdum):
     return trail
 
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.3, printtime= 5, logfile= "\\log1812try1.log")
+model, varshall, varsdegree = runModel(hallways, vdum, maxtime=600, printtime= 5, logfile= "\\log1812try1.log")
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
-# used_edges= getEdgesResult(model, varshall)
-# print(f"we have {vdum} as dummy vertex")
-# print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
-# pprint(f"The used edges in the solution are:\n{used_edges}")
-# trailresult= constructTrail(used_edges, vdum)
-# drawEdgesInFloorplans(trailresult)
+used_edges= getEdgesResult(model, varshall)
+print(f"we have {vdum} as dummy vertex")
+print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+pprint(f"The used edges in the solution are:\n{used_edges}")
+trailresult= constructTrail(used_edges, vdum)
+drawEdgesInFloorplans(trailresult)
 results = glt.parse(PATH_test+"\\log1812try1.log")
 nodelogs = results.progress("nodelog")
 pd.set_option("display.max_columns", None)
