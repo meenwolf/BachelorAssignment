@@ -15,7 +15,10 @@ import re
 import math
 from copy import deepcopy
 
-from TrialExtractSVG import neighbours
+import pandas as pd
+import gurobi_logtools as glt
+import plotly.graph_objects as go
+
 
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -254,7 +257,7 @@ class TSPCallback:
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
-def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
+def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None):
 
     m = Model()
     if maxtime != None:
@@ -263,6 +266,8 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None):
         m.Params.MIPGap= maxgap
     if printtime!=None:
         m.Params.DisplayInterval= printtime
+    if logfile != None:
+        m.Params.LogFile= PATH_test+logfile
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
 
@@ -635,12 +640,24 @@ def constructTrail(edges,vdum):
     return trail
 
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.3, printtime= 5)
+model, varshall, varsdegree = runModel(hallways, vdum, maxgap=0.3, printtime= 5, logfile= "\\log1812try1.log")
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
-used_edges= getEdgesResult(model, varshall)
-print(f"we have {vdum} as dummy vertex")
-print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
-pprint(f"The used edges in the solution are:\n{used_edges}")
-trailresult= constructTrail(used_edges, vdum)
-drawEdgesInFloorplans(trailresult)
+# used_edges= getEdgesResult(model, varshall)
+# print(f"we have {vdum} as dummy vertex")
+# print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+# pprint(f"The used edges in the solution are:\n{used_edges}")
+# trailresult= constructTrail(used_edges, vdum)
+# drawEdgesInFloorplans(trailresult)
+results = glt.parse(PATH_test+"\\log1812try1.log")
+nodelogs = results.progress("nodelog")
+pd.set_option("display.max_columns", None)
+print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
+print(nodelogs.head(10))
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
+fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
+fig.update_xaxes(title_text="Runtime in seconds")
+fig.update_yaxes(title_text="Objective value function (in meters)")
+fig.update_layout(title_text="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver")
+fig.show()
