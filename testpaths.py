@@ -57,7 +57,7 @@ bridgeLengths={"C01CRWA": 10, "C01WACR": 10, "C01CRNL": 10, "C01NLCR": 10, "C01C
 
 # Loop over the files to save a file where we can draw the resulting longest paths in
 for building in os.listdir(PATH):
-    if not 'testpath' in building:
+    if not 'testpaths2l' in building:
         continue
 
     #Now start extracting the path information

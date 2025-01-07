@@ -58,6 +58,8 @@ bridgeLengths={"C01CRWA": 10, "C01WACR": 10, "C01CRNL": 10, "C01NLCR": 10, "C01C
                "C01ZHNL": 10, "C01NLZH": 10, "C01RAZI": 10, "C01ZIRA": 10, }
 
 # Loop over the files to save a file where we can draw the resulting longest paths in
+# distfloorci=dict()
+# edgesRAfive=[]
 for building in os.listdir(PATH_drawings):
     if 'WAAIER' in building:
         continue
@@ -66,6 +68,11 @@ for building in os.listdir(PATH_drawings):
     for file in listOfFiles:
         if file.endswith(".svg"):
             floor= file.split('.')[1]
+            # printcase=False
+            # if "RAVELIJN" in building:
+            #     if floor == '5':
+            #         printcase=True
+
             newFigurePath = buildingEmpty + f"\\{file}"
 
             tree = ET.parse(newFigurePath)
@@ -90,22 +97,24 @@ for building in os.listdir(PATH_drawings):
                         print(f"the scale label is: {attr['inkscape:label']}")
                         lengthForOneMeter = abs(path.start - path.end)
                         break
-
+            # pathnumber=0
             for path, attr in zip(paths, attributes):
+                # pathnumber+=1
+                # if printcase:
+                #     print(f"in RAVELIJN floor 5 there are {len(path)} lines in path {pathnumber}")
                 for i, line in enumerate(path):
                     start = np.round(line.start, 3)
                     end = np.round(line.end, 3)
+
                     edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
                     specialPath = False
                     if "inkscape:label" in attr.keys():
                         if 'mtr' in attr['inkscape:label']:
                             continue
-                        elif 'path' in attr['inkscape:label']:
-                            #we renamed a path ourselves, with: path+number so it is NOT a special path
-                            print(f"path:{attr['inkscape:label']} has line: {line}")
-                            continue
-                        else:
+                        elif not 'path' in attr['inkscape:label']: #meaning that we did not delete the name of a path in inkscape (e.g. chaning it on accident, and delete the wrong name)
                             specialPath = True
+                            # if "CIC01RA" ==  attr['inkscape:label']:
+                            #     print(f"line {attr['inkscape:label']} has line: {line}")
 
                     if not (start, building, floor) in coordinateToNode:
                         coordinateToNode[(start, building, floor)] = nextnode
@@ -130,13 +139,24 @@ for building in os.listdir(PATH_drawings):
 
                         specialEdges[(snode, enode)]=attr['inkscape:label']
                         specialEdges[(enode, snode)]=attr['inkscape:label']
+                    # if "CITADEL" in building:
+                    #     if floor == '3':
+                    #         if not snode in distfloorci:
+                    #             distfloorci[snode]= {'to 375': abs(start - 381.443-360.003j)/lengthForOneMeter, 'to 376': abs(start- 338.295-360.344j)/lengthForOneMeter}
+                    #         if not enode in distfloorci:
+                    #             distfloorci[enode]= {'to 375': abs(end - 381.443-360.003j)/lengthForOneMeter, 'to 376': abs(end-  338.295-360.344j)/lengthForOneMeter}
+                    # # if printcase:
+                    #     print(f"we save edge: {(snode, enode)} in edgesRAfive")
+                    #     edgesRAfive.append((snode, enode))
+
                     hallways[(snode, enode)] = edgeweight
 
 
-
+# print(f"distances to the bridge to RA from CI: {distfloorci}")
 print(figuresResultBuildings)
 print(f"the special paths are:")
 pprint(specialPaths)
+print(f"special edges are: {specialEdges}")
 print("The hallways are:")
 pprint(hallways)
 print(f"next node is dummy vertex number: {nextnode}")
@@ -246,7 +266,10 @@ for pathname, pathinfo in specialPaths.items():
                 print(f"We did draw the paths in the other building of the bridge between {pathname} and {otherSide}. Have to measure this bridge by hand and connects the two ends of bridge with an edge of this length.")
                 lenbridge= bridgeLengths[bridgeName]
                 end1 = findSingleEnd(pathname, neighboursold)
+                print(f"end1: {end1}: {nodeToCoordinate[end1]}")
                 end2 = findSingleEnd(otherSide, neighboursold)
+                print(f"end2: {end2}: {nodeToCoordinate[end2]}")
+
                 hallways[(end1, end2)] = lenbridge  # Connect the endpoint of a bridge to the corresponding entry of the other building
                 neighbours[end1].add(end2)
                 neighbours[end2].add(end1)
@@ -272,8 +295,8 @@ for i in range(vdum):
         reachable= getReachable(neighbours, i)
         components.append(reachable)
         connectedvertices.update(reachable)
-print(f"connected components are of lengths: {[len(com) for com in components]} fully: {components}")
-
+print(f"connected components are of lengths: {[len(com) for com in components]}")
+print(f"vertices in comp0: {components[0]}")
 buildingsProblem=dict()
 for i, component in enumerate(components):
     buildings=dict()
@@ -296,10 +319,43 @@ for i, component in enumerate(components):
                 print(f"vertex {vertex} is NOT an elevator")
     buildingsProblem[i]= buildings
 
-print(f"the problems of the components occur in: {buildingsProblem}")
+# print(f"component 0 is large, so lets check 1 in: {buildingsProblem[1]}")
+def getEdgesComponent(setVertices, allEdges):
+    resultingEdges=[]
+    for edge in allEdges:
+        if edge[0] in setVertices and edge[1] in setVertices:
+            resultingEdges.append(edge)
+    return resultingEdges
 
-print(f"component 0 is large, so lets check 1 in: {buildingsProblem[1]}: vertices: {components[1]}")
+edgesComponent= getEdgesComponent(components[0], list(hallways.keys()))
+# node1= list(components[1])[-1]
+# node2= list(components[1])[-2]
+node1= 375
+node2= 376
+print(f"{node1}: {nodeToCoordinate[node1]}, {node2}:{nodeToCoordinate[node2]}")
+print(f"coordinate to node? is there a very close one to {node2}? {coordinateToNode}")
+building= nodeToCoordinate[node1]['Building']
+floor= nodeToCoordinate[node1]['Floor']
+location1= nodeToCoordinate[node1]['Location']
+location2= nodeToCoordinate[node2]['Location']
 
+closest1=(0, building, floor)
+closest2=(0, building, floor)
+for key, val in coordinateToNode.items():
+    if key[1] == building and key [2] == floor:
+        if not val in [node1, node2]:
+            if np.abs(key[0]-location1)< np.abs(closest1[0]-location1):
+                closest1= key
+            if np.abs(key[0]-location2)< np.abs(closest2[0]-location2):
+                closest2= key
+print(f"Closest to node node1: {nodeToCoordinate[node1]}: {closest1}")
+print(f"Closest to node node2: {nodeToCoordinate[node2]}: {closest2}")
+
+v1= coordinateToNode[closest1]
+v2= coordinateToNode[closest2]
+
+w1= list(neighboursold[v1])[0]
+w2= list(neighboursold[v2])[0]
 
 
 
@@ -433,7 +489,7 @@ def getCoordinatesPair(vtuple):
 #Get the building name and number from the building name containing both of them with a space in between.
 def splitNameNumber(buildingNo):
     res = buildingNo.split()
-    print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
+    # print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
     return res[0], res[1]
 
 
@@ -609,6 +665,26 @@ def drawEdgesInFloorplans(edges):
                             text_element.text = str(toFloor)
                             thisRoot = figuresResultBuildings[building0][floor0]['root']
                             thisRoot.append(text_element)
+                    elif specialEdges[edge][2]=="C":
+                        #We go to a walking bridge, so we print the building on the end
+                        drawCoord = nodeToCoordinate[edge[1]]['Location']
+
+                        if building0 == "CARRE 1412":
+                            if floor0 == '4':  # since this floor had a weird shift in it
+                                drawCoord = drawCoord + 126.822 + 494.891j
+
+                        # Add the number
+                        text_element = ET.Element("text", attrib={
+                            "x": str(drawCoord.real),
+                            "y": str(drawCoord.imag),
+                            "font-size": "24",  # Font size in pixels
+                            "fill": "blue",  # Text color
+                            "stroke": "blue"
+                        })
+                        text_element.text = specialEdges[edge][5:]
+                        thisRoot = figuresResultBuildings[building0][floor0]['root']
+                        thisRoot.append(text_element)
+                        color = "purple"
 
                 else:
                     # Normal edges are also colored according to the fading rainbow.
@@ -648,24 +724,24 @@ def drawEdgesInFloorplans(edges):
                 text_element.text = str(toFloor)
                 thisRoot = figuresResultBuildings[building0][floor0]['root']
                 thisRoot.append(text_element)
-        else:
-            # We go from building0 to building1
-            toBuild = nodeToCoordinate[edge[1]]['Building']
-            drawCoord = nodeToCoordinate[edge[0]]['Location']
-            if building0 == "CARRE 1412":
-                if floor0 == '4': # since this floor had a weird shift in it
-                    drawCoord = drawCoord + 126.822 + 494.891j
-
-            text_element = ET.Element("text", attrib={
-                "x": str(drawCoord.real),
-                "y": str(drawCoord.imag),
-                "font-size": "24",  # Font size in pixels
-                "fill": "saddlebrown",  # Text color
-                "stroke": "saddlebrown"
-            })
-            text_element.text = toBuild
-            thisRoot = figuresResultBuildings[building0][floor0]['root']
-            thisRoot.append(text_element)
+        # else:
+        #     # We go from building0 to building1
+        #     toBuild = nodeToCoordinate[edge[1]]['Building']
+        #     drawCoord = nodeToCoordinate[edge[0]]['Location']
+        #     if building0 == "CARRE 1412":
+        #         if floor0 == '4': # since this floor had a weird shift in it
+        #             drawCoord = drawCoord + 126.822 + 494.891j
+        #
+        #     text_element = ET.Element("text", attrib={
+        #         "x": str(drawCoord.real),
+        #         "y": str(drawCoord.imag),
+        #         "font-size": "24",  # Font size in pixels
+        #         "fill": "saddlebrown",  # Text color
+        #         "stroke": "saddlebrown"
+        #     })
+        #     text_element.text = toBuild
+        #     thisRoot = figuresResultBuildings[building0][floor0]['root']
+        #     thisRoot.append(text_element)
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
@@ -763,37 +839,18 @@ def constructTrail(edges,vdum):
                 break
     return trail
 
-# drawEdgesInFloorplans([(259,260)])
+verticescira= []
+for key,val in coordinateToNode.items():
+    if "CITADEL" in key[1] and key[2]=='3':
+        verticescira.append(val)
+edgescira= getEdgesComponent(verticescira, list(hallways.keys()))
+print(edgescira)
+# drawEdgesInFloorplans(edgescira)
 
-print(f"259: {nodeToCoordinate[259]}, 260:{nodeToCoordinate[260]}")
-print(f"coordinate to node? is there a very close one to 260? {coordinateToNode}")
-building= nodeToCoordinate[259]['Building']
-floor= nodeToCoordinate[259]['Floor']
-location1= nodeToCoordinate[259]['Location']
-location2= nodeToCoordinate[260]['Location']
-
-closest1=(0, building, floor)
-closest2=(0, building, floor)
-for key, val in coordinateToNode.items():
-    if key[1] == building and key [2] == floor:
-        if not val in [259, 260]:
-            if np.abs(key[0]-location1)< np.abs(closest1[0]-location1):
-                closest1= key
-            if np.abs(key[0]-location2)< np.abs(closest2[0]-location2):
-                closest2= key
-print(f"Closest to node 259: {nodeToCoordinate[259]}: {closest1}")
-print(f"Closest to node 260: {nodeToCoordinate[260]}: {closest2}")
-
-v1= coordinateToNode[closest1]
-v2= coordinateToNode[closest2]
-
-w1= list(neighboursold[v1])[0]
-w2= list(neighboursold[v2])[0]
-
-drawEdgesInFloorplans(list(hallways.keys()))
-
-
-
+# drawEdgesInFloorplans([(node1, node2), (v1,w1), (v2,w2)])
+drawEdgesInFloorplans(edgesComponent)
+# drawEdgesInFloorplans(list(hallways.keys()))
+print(nodeToCoordinate)
 
 
 #
