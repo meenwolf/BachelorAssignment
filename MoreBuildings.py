@@ -730,7 +730,7 @@ def constructTrail(edges,vdum):
 
 
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxtime=50, printtime= 15, logfile= "\\log0701try1.log")
+model, varshall, varsdegree = runModel(hallways, vdum, maxtime=120, printtime= 15, logfile= "\\log0701try1.log")
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
