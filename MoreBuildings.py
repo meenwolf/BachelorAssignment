@@ -786,14 +786,15 @@ def isTwoCut(node_neighbors, edge1, edge2, getComponent=False):
         return False
 
 
-def dealWithBridges(edges, specialPaths):
+def findCuts(edges, specialPaths, neighbourhood=None):
     onecuts = dict()
     twocuts = dict(dict(dict()))
-    neighbourhood = getNeighbourhood(edges)
+    if neighbourhood ==None:
+        neighbourhood = getNeighbourhood(edges)
     bridges = dict()
     potentialtwocuts = dict()
     for path, info in specialPaths.items():
-        if path[1] == "0":  # meaning that it is a bridge
+        if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL']:  # meaning that it is a bridge
             print(f"specialPaths: {specialPaths}")
             print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
             print(f"start: {specialPaths[path]['Start']}")
@@ -821,11 +822,98 @@ def dealWithBridges(edges, specialPaths):
     return onecuts, twocuts
 
 
-oneCuts, twoCuts = dealWithBridges(hallways.keys(), specialPaths)
+oneCuts, twoCuts = findCuts(hallways.keys(), specialPaths)
 
 print(f"the following bridges are onecuts: {oneCuts}")
 print(f"the following bridges are twocuts: {twoCuts}")
 
+def getEdgesComponent(allEdges, vertices, neighbourhood=None):
+    if neighbourhood ==None:
+        neighbourhood=getNeighbourhood(allEdges)
+    edges=[]
+    for edge, weight in allEdges.items():
+        # print(f"{edge}, is of type {type(edge)}")
+
+    edgesComponent = [(v, n) for v in vertices for n in neighbourhood[v] if n in vertices] + [(n, v) for v in vertices for n in neighbourhood[v] if n in vertices]
+    if type(allEdges) == dict:
+        edgesComponentTry= [edge for edge in allEdges.items() if edge[0][0] in vertices if edge[0][1] in vertices]
+        # print(edgesComponentTry)
+        print(f"vertices:{vertices}")
+        for ecom in edgesComponent:
+            if ecom[0] not in vertices:
+                print(f"original list has {ecom}, with  the first element not in vertices")
+            if ecom[1] not in vertices:
+                print(f"original list has {ecom}, with the second element not in vertices")
+        print(f"as a list (keys): {edgesComponentTry}")
+        # print(f" is that equal to the original edges component? {list(edgesComponentTry.keys())==edgesComponent}")
+        print(f"since edges component original is: {edgesComponent}")
+        print(f"are they equal: {len(edgesComponentTry)}, and og: {len(edgesComponent)}, {edgesComponentTry == edgesComponent}")
+    return edgesComponent
+
+def reduceGraphBridges(weigthededges, specialPaths):
+    neighbourhood= getNeighbourhood(weigthededges.keys())
+    onecuts, twocuts = findCuts(weigthededges.keys(), specialPaths, neighbourhood)
+    if len(onecuts) >0: #meaning that there are one cuts
+        print(f"one cuts are: {onecuts}\n with keys: {onecuts.keys()}")
+        #just take the first onecut and repeat the process.
+        onecutedge= list(onecuts.keys())[0]
+        onecutinfo= onecuts[onecutedge]
+        print(f"onecutedge:{onecutedge} with: {nodeToCoordinate[onecutedge[0]]} and \n {nodeToCoordinate[onecutedge[1]]}")
+        print(f"onecutinfo: {onecutinfo}")
+        print(f"neighbourhood of the cut edge:{neighbourhood[onecutedge[0]]} and {neighbourhood[onecutedge[1]]}")
+        # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
+        # and the ones of onecut[1] are in c1 and building 1.
+        if onecutedge[0] in onecutinfo['Component1vertices']:
+            c0= onecutinfo['Component1vertices']
+            c1= onecutinfo['Component2vertices']
+        else:
+            c0 = onecutinfo['Component2vertices']
+            c1 = onecutinfo['Component1vertices']
+
+        building0 = nodeToCoordinate[onecutedge[0]]['Building']
+        building1 = nodeToCoordinate[onecutedge[1]]['Building']
+        edgesC0= getEdgesComponent(weigthededges, c0,neighbourhood)
+        edgesC0= getEdgesComponent(weigthededges, c1,neighbourhood)
+
+        print(f"building0 :{building0} and building1: {building1}")
+        # Tc0= reduceGraphBridges()
+
+
+    else: # we connect the dummy vertex to all the points in the graph with no walking bridges, and find the longest trail
+        vdum= max(list(neighbourhood.keys()))
+        neighbourhood[vdum] = set(range(vdum))
+        for i in range(nextnode):
+            weigthededges[(vdum, i)]=0
+            neighbourhood[i].add(vdum)
+        model, varshall, varsdegree = runModel(weigthededges, vdum, maxtime=15, printtime=15,
+                                               logfile="\\log0801try1.log")
+        lengthLongestTrail=model.getAttr('ObjVal')
+        print(f"The longest trail is {lengthLongestTrail} meters long")
+        used_edges= getEdgesResult(model, varshall)
+        print(f"we have {vdum} as dummy vertex")
+        print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+        pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
+        trailresult= constructTrail(used_edges, vdum)
+        return trailresult
+        # print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
+        # drawEdgesInFloorplans(trailresult)
+        # results = glt.parse(PATH+"\\log0801try1.log")
+        # nodelogs = results.progress("nodelog")
+        # pd.set_option("display.max_columns", None)
+        # print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
+        # print(nodelogs.head(10))
+        # fig = go.Figure()
+        # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
+        # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
+        # fig.update_xaxes(title_text="Runtime in seconds")
+        # fig.update_yaxes(title_text="Objective value function (in meters)")
+        # fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
+        # fig.show()
+
+
+
+
+reduceGraphBridges(hallways, specialPaths)
 # # Add hallways to the dummy vertex:
 # vdum= nextnode
 # nextnode += 1
