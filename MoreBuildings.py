@@ -2,7 +2,7 @@ import os
 from os.path import split
 
 from bokeh.colors.named import saddlebrown
-from networkx.classes import neighbors
+from networkx.classes import neighbors, path_weight
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
@@ -18,6 +18,9 @@ from copy import deepcopy
 import pandas as pd
 import gurobi_logtools as glt
 import plotly.graph_objects as go
+
+from TestMoreBuildings import otherBridgeName
+
 
 # from TrialExtractSVG import getBuildingFloor
 def getBuildingFloor(nodeToCoordinate, vnum):
@@ -140,11 +143,27 @@ print("The hallways are:")
 pprint(hallways)
 print(f"next node is dummy vertex number: {nextnode}")
 # Define a dictionary where each vertex maps to a set of its neighbours
-neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
 
-for v1,v2 in hallways.keys():
-    neighboursold[v1].add(v2)
-    neighboursold[v2].add(v1)
+def getNeighbourhood(edges):
+    neighbourhood = dict()
+    for v1, v2 in edges:
+        if v1 in neighbourhood:
+            neighbourhood[v1].add(v2)
+        else:
+            neighbourhood[v1]={v2}
+        if v2 in neighbourhood:
+            neighbourhood[v2].add(v1)
+        else:
+            neighbourhood[v2]={v1}
+    return neighbourhood
+
+
+neighboursold = getNeighbourhood(hallways.keys())
+# neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
+#
+# for v1,v2 in hallways.keys():
+#     neighboursold[v1].add(v2)
+#     neighboursold[v2].add(v1)
 
 neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
 # Connections regarding staircases, elevators and connections between buildings
@@ -164,6 +183,7 @@ def findSingleEnd(specialedge,neighbourhood): #uses the global variables special
 elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
 elevatorEdges=set()
 connected=[]
+addedBridges=dict()
 for pathname, pathinfo in specialPaths.items():
     if pathname[2]=="E": #We have an edge to an elevator
         startname = pathname[:5]
@@ -209,6 +229,7 @@ for pathname, pathinfo in specialPaths.items():
         # print(f"This hallway {pathname} ends at a walking bridge{bridgeName} or {otherBridgeName} and the other side is: {otherSide}")
 
         if  bridgeName in specialPaths.keys():
+            # if 'and' not in specialPaths[bridgeName]['Building']: #check that we did not add this bridge in the code but in inkscape
             if bridgeName not in connected:
                 if otherSide in specialPaths:
                     print(f"????THE???? walking bridge is connected to edge {pathname} in the same building. I overdid the naming and will connect this hallway to the otherSide")
@@ -228,6 +249,8 @@ for pathname, pathinfo in specialPaths.items():
             print(f"We did not connect this endpoint yet")
             #Check if the bridge is drawn into the other buildings floorplan
             if otherBridgeName in specialPaths.keys():
+                # if 'and' not in specialPaths[otherBridgeName]['Building']:  # check that we did not add this bridge in the code but in inkscape
+
                 print(f"The bridge is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
                 #We find the end of edge pathname and of edge otherBridgeName and connect them with an edge of weight zero
                 end1= findSingleEnd(pathname, neighboursold)
@@ -250,6 +273,10 @@ for pathname, pathinfo in specialPaths.items():
                 print(f"end2: {end2}: {nodeToCoordinate[end2]}")
 
                 hallways[(end1, end2)] = lenbridge  # Connect the endpoint of a bridge to the corresponding entry of the other building
+                addedBridges[bridgeName]= {'Building': buildingOfEdge+' and '+buildingToEdge,
+             'End': {'Location': nodeToCoordinate[end2]['Location'], 'Vnum': end2},
+             'Floor': nodeToCoordinate[end2]['Floor'],
+             'Start': {'Location': nodeToCoordinate[end1]['Location'], 'Vnum': end1}}
                 neighbours[end1].add(end2)
                 neighbours[end2].add(end1)
                 connected.append(pathname)
@@ -262,30 +289,16 @@ for pathname, pathinfo in specialPaths.items():
     else:
         print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
-# Add hallways to the dummy vertex:
-vdum= nextnode
-nextnode += 1
-print(f"neighbourhoods are: {neighbours}")
-print(f"are all vertices reachable from vertex 1 before adding dummy vertex?? {len(getReachable(neighbours, 1))==vdum}")
-
-
-
-neighbours[vdum]= set(range(vdum))
-
-for i in range(nextnode):
-    hallways[(vdum, i)]=0
-    neighbours[i].add(vdum)
-
-
-print(f"Neighbours old is new? {neighboursold==neighbours}")
+specialPaths.update(addedBridges)
 
 
 def vdum_reachable(edges, vdum):
     # Create a mapping from each node to its neighbours in the feasible solution
-    node_neighbors = defaultdict(list)
-    for i, j in edges:
-        node_neighbors[i].append(j)
-        node_neighbors[j].append(i)
+    # node_neighbors = defaultdict(list)
+    node_neighbors= getNeighbourhood(edges)
+    # for i, j in edges:
+    #     node_neighbors[i].append(j)
+    #     node_neighbors[j].append(i)
 
     assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())#assert even degree of the vertices in the solution
     assert vdum in node_neighbors #assert vdum being a vertex visited in the solution
@@ -642,36 +655,39 @@ def drawEdgesInFloorplans(edges):
             floortree.write(buildingResultPath+testfilename)
 
 
-def constructTrail(edges,vdum):
-    print(f"{len(edges)} edges:{edges}")
-    nedges= len(edges)
+def constructTrail(edgeswithdum,vdum):
+    print(f"{len(edgeswithdum)} edges:{edgeswithdum}")
+    nedges= len(edgeswithdum)
     trail=[]
-    node_neighbors = defaultdict(list)
+    # node_neighbors = defaultdict(list)
     #Get the neighbourhoods of the induced graph by the edges, but not considering the dummy vertex and dummy edges
-    dummyEdges=[]
-    for i, j in edges:
-        if i != vdum and j != vdum:
-            node_neighbors[i].append(j)
-            node_neighbors[j].append(i)
-        else:
-            dummyEdges.append((i,j))
-            dummyEdges.append((j,i))
+    edges = [ edge for edge in edgeswithdum if vdum not in edge]
+    # for edge in edgeswithdum:
+    #     if vdum in edge:
+    #         edges.remove(edge)
+    node_neighbors = getNeighbourhood(edges)
 
-    # Remove the dummy edges from the used edges
-    for edge in dummyEdges:
-        if edge in edges:
-            edges.remove(edge)
+    #
+    #     else:
+    #         dummyEdges.append((i,j))
+    #         dummyEdges.append((j,i))
+    #
+    # # Remove the dummy edges from the used edges
+    # for edge in dummyEdges:
+    #     if edge in edges:
+    #         edges.remove(edge)
 
     print(node_neighbors)
 
     for node, neighbs in node_neighbors.items():
+        neighbs= list(neighbs)
         if len(neighbs)==1:
             # We found a start!
             print(f"potential start: {node}")
             currentNode=node
 
     while len(trail)<nedges-2:
-        neighbs= node_neighbors[currentNode]
+        neighbs= list(node_neighbors[currentNode])
         print(f"we are at: {currentNode} with neighbours {neighbs}\n")
 
         if len(neighbs)==1: # We go to this neighbour
@@ -702,20 +718,20 @@ def constructTrail(edges,vdum):
                     print(f"ERROR: vertex {vertex} is a neighbour of current node {currentNode} but no edge is in the edge set")
 
                 #check if this edge is a bridge
-                nReachableBefore= getReachable(node_neighbors, currentNode)
-                print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
-                node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
-                node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
-                nReachableAfter= getReachable(node_neighbors, currentNode)
-                print(f"after deleting the edge to {vertex} there are {len(nReachableAfter)} nodes reachable: {nReachableAfter}")
+                isBridge= isCutEdge(node_neighbors, edgeToConsider, currentNode)
+                # nReachableBefore= getReachable(node_neighbors, currentNode)
+                # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
+                # node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+                # node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
+                # nReachableAfter= getReachable(node_neighbors, currentNode)
+                # print(f"after deleting the edge to {vertex} there are {len(nReachableAfter)} nodes reachable: {nReachableAfter}")
 
-                if nReachableAfter< nReachableBefore: # It is a bridge
+                if isBridge: # It is a bridge
                     print(f"So this edge is a bridge, don't go to {vertex} now, but continue searching.")
                     #edge edgeToConsider is a bridge so look for the next after adding the vertices back to nodeneighbours
-                    node_neighbors[edgeToConsider[0]].append(edgeToConsider[1])
-                    node_neighbors[edgeToConsider[1]].append(edgeToConsider[0])
-
-                else:
+                else: # not a bridge so we take this edge
+                    node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+                    node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
                     print(f"edge  to {vertex} is not a bridge, so we can take this one")
                     edges.remove(edgeToConsider)
                     trail.append((currentNode, vertex))
@@ -727,28 +743,125 @@ def constructTrail(edges,vdum):
                 break
     return trail
 
+def isCutEdge(node_neighbors, edgeToConsider,currentNode=None, getComponent=False):
+    if currentNode== None:
+        currentNode=edgeToConsider[0]
+    nReachableBefore= getReachable(node_neighbors, currentNode)
+    # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
+    node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+    node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
+    nReachableAfter= getReachable(node_neighbors, currentNode)
+    node_neighbors[edgeToConsider[0]].add(edgeToConsider[1])
+    node_neighbors[edgeToConsider[1]].add(edgeToConsider[0])
+    if len(nReachableAfter)< len(nReachableBefore): # It is a bridge
+        if getComponent:
+            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in nReachableAfter]
+            return True, nReachableAfter, otherVertices
+        else:
+            return True
+    else:
+        return False
+
+def isTwoCut(node_neighbors, edge1, edge2, getComponent=False):
+    currentNode= edge1[0]
+    nReachableBefore= getReachable(node_neighbors, currentNode)
+    # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
+    node_neighbors[edge1[0]].remove(edge1[1])
+    node_neighbors[edge1[1]].remove(edge1[0])
+    node_neighbors[edge2[0]].remove(edge2[1])
+    node_neighbors[edge2[1]].remove(edge2[0])
+
+    nReachableAfter= getReachable(node_neighbors, currentNode)
+    node_neighbors[edge1[0]].add(edge1[1])
+    node_neighbors[edge1[1]].add(edge1[0])
+    node_neighbors[edge2[0]].add(edge2[1])
+    node_neighbors[edge2[1]].add(edge2[0])
+    if len(nReachableAfter)< len(nReachableBefore): # It is a 2 edge cut
+        if getComponent:
+            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in nReachableAfter]
+            return True, nReachableAfter, otherVertices
+        else:
+            return True
+    else:
+        return False
 
 
+def dealWithBridges(edges, specialPaths):
+    onecuts = dict()
+    twocuts = dict(dict(dict()))
+    neighbourhood = getNeighbourhood(edges)
+    bridges = dict()
+    potentialtwocuts = dict()
+    for path, info in specialPaths.items():
+        if path[1] == "0":  # meaning that it is a bridge
+            print(f"specialPaths: {specialPaths}")
+            print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
+            print(f"start: {specialPaths[path]['Start']}")
+            print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxtime=120, printtime= 15, logfile= "\\log0701try1.log")
-lengthLongestTrail=model.getAttr('ObjVal')
-print(f"The longest trail is {lengthLongestTrail} meters long")
-used_edges= getEdgesResult(model, varshall)
-print(f"we have {vdum} as dummy vertex")
-print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
-pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
-trailresult= constructTrail(used_edges, vdum)
-print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
-drawEdgesInFloorplans(trailresult)
-results = glt.parse(PATH+"\\log1812try1.log")
-nodelogs = results.progress("nodelog")
-pd.set_option("display.max_columns", None)
-print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
-print(nodelogs.head(10))
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
-fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
-fig.update_xaxes(title_text="Runtime in seconds")
-fig.update_yaxes(title_text="Objective value function (in meters)")
-fig.update_layout(title_text="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver")
-fig.show()
+
+            pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
+            bridges[pathedge] =path
+
+    for bridge, name in bridges.items():
+        cutedge, component1, component2 = isCutEdge(neighbourhood, bridge, getComponent=True)
+        if cutedge:
+            onecuts[bridge] = {'Name': name, 'Component1vertices': component1, 'Component2vertices': component2}
+        else:  # check for each other combination if it forms a 2 cut.
+            potentialtwocuts[bridge]=name
+
+    for path1, path2 in combinations(potentialtwocuts.keys(), 2):
+        twocut, component1, component2 = isTwoCut(neighbourhood, path1, path2, getComponent=True)
+        if twocut:
+            if path1 in twocuts:
+                twocuts[path1][path2] = {'Name':potentialtwocuts[path1]+'and'+potentialtwocuts[path2] ,'Component1vertices': component1, 'Component2vertices': component2}
+            else:
+                twocuts[path1] = {path2: {'Name':potentialtwocuts[path1]+'and'+potentialtwocuts[path2], 'Component1vertices': component1,
+                                          'Component2vertices': component2}}
+    return onecuts, twocuts
+
+
+oneCuts, twoCuts = dealWithBridges(hallways.keys(), specialPaths)
+
+print(f"the following bridges are onecuts: {oneCuts}")
+print(f"the following bridges are twocuts: {twoCuts}")
+
+# # Add hallways to the dummy vertex:
+# vdum= nextnode
+# nextnode += 1
+# print(f"neighbourhoods are: {neighbours}")
+# print(f"are all vertices reachable from vertex 1 before adding dummy vertex?? {len(getReachable(neighbours, 1))==vdum}")
+# #
+# # def addDummy(neighbourhood):
+# #     vdum= max(list(neighbourhood.keys()))
+# neighbours[vdum]= set(range(vdum))
+#
+# for i in range(nextnode):
+#     hallways[(vdum, i)]=0
+#     neighbours[i].add(vdum)
+#
+#
+# print(f"Neighbours old is new? {neighboursold==neighbours}")
+#
+# model, varshall, varsdegree = runModel(hallways, vdum, maxtime=15, printtime= 15, logfile= "\\log0801try1.log")
+# lengthLongestTrail=model.getAttr('ObjVal')
+# print(f"The longest trail is {lengthLongestTrail} meters long")
+# used_edges= getEdgesResult(model, varshall)
+# print(f"we have {vdum} as dummy vertex")
+# print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+# pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
+# trailresult= constructTrail(used_edges, vdum)
+# print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
+# drawEdgesInFloorplans(trailresult)
+# results = glt.parse(PATH+"\\log0801try1.log")
+# nodelogs = results.progress("nodelog")
+# pd.set_option("display.max_columns", None)
+# print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
+# print(nodelogs.head(10))
+# fig = go.Figure()
+# fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
+# fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
+# fig.update_xaxes(title_text="Runtime in seconds")
+# fig.update_yaxes(title_text="Objective value function (in meters)")
+# fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
+# fig.show()
