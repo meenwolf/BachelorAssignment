@@ -952,8 +952,8 @@ def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoord
             weigthededges[(vdum, i)]=0
             neighbourhood[i].add(vdum)
 
-        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=15, printtime=15,
-                                               logfile="\\log0801try1.log", ends=ends)
+        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=1800, printtime=15,
+                                               logfile="\\log0801try2.log", ends=ends)
         lengthLongestTrail=model.getAttr('ObjVal')
         print(f"The longest trail is {lengthLongestTrail} meters long")
         used_edges= getEdgesResult(model, varshall)
