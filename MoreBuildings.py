@@ -2,7 +2,7 @@ import os
 from os.path import split
 
 from bokeh.colors.named import saddlebrown
-from networkx.classes import neighbors, path_weight
+from networkx.classes import neighbors, path_weight, edges
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
@@ -335,7 +335,7 @@ class TSPCallback:
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
         reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
-
+        neighbours= getNeighbourhood(edges)
         edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
         edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
         edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
@@ -345,8 +345,8 @@ class TSPCallback:
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
-def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None):
-
+def runModel(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
+    print(f"keys of neighbourhood:{neighbourhood.keys()}")
     m = Model()
     if maxtime != None:
         m.Params.TimeLimit = maxtime
@@ -369,20 +369,30 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=No
     m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
 
     # Add the even degree constraint for dummyvetex nvdum=2:
-    m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
+    m.addConstr(sum([varssol[(nvdum, e)] for e in neighbourhood[nvdum]]) == 2, name='evenDegreeVDUM')
 
     # Add the even degree constraint for the other vertices
     for i in range(nvdum):
-        m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
+        m.addConstr(sum([varssol[(i, e)] for e in neighbourhood[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
 
     # Add the constraint that forbids you to use an elevator multiple times:
     for name, vertex in elevatorVertices.items():
         m.addConstr(varsaux[vertex]<= 1, name=f'visit{name}AtMostOnce')
 
+    # For the case where we simplified the graph with onecuts, we can have a mandatory start or end point
+    # So add those constraints underneath.
+
+    assert len(ends) in [0,1,2] # Since we can only have a mandatory start, end, both or none,
+
+    if len(ends)>0: #meaning that we have a mandatory start or endpoint or both for our trail
+        for end in ends:
+            m.addConstr(varssol[(nvdum, end)]==1,  name=f'muststartorendin{end}') #so we must end(or start) in these vertices since that is the only vertex connected to vdum, and we
+        # we have our even degree, with degree of vdum=2, and connected graph. Those make sure we end in end.
+
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(vdum+1), varssol)
+    cb = TSPCallback(range(nvdum+1), varssol)
 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
@@ -746,17 +756,17 @@ def constructTrail(edgeswithdum,vdum):
 def isCutEdge(node_neighbors, edgeToConsider,currentNode=None, getComponent=False):
     if currentNode== None:
         currentNode=edgeToConsider[0]
-    nReachableBefore= getReachable(node_neighbors, currentNode)
+    reachableBefore= getReachable(node_neighbors, currentNode)
     # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
     node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
     node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
-    nReachableAfter= getReachable(node_neighbors, currentNode)
+    reachableAfter= getReachable(node_neighbors, currentNode)
     node_neighbors[edgeToConsider[0]].add(edgeToConsider[1])
     node_neighbors[edgeToConsider[1]].add(edgeToConsider[0])
-    if len(nReachableAfter)< len(nReachableBefore): # It is a bridge
+    if len(reachableAfter)< len(reachableBefore): # It is a bridge
         if getComponent:
-            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in nReachableAfter]
-            return True, nReachableAfter, otherVertices
+            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in reachableAfter]
+            return True, reachableAfter, otherVertices
         else:
             return True
     else:
@@ -764,22 +774,22 @@ def isCutEdge(node_neighbors, edgeToConsider,currentNode=None, getComponent=Fals
 
 def isTwoCut(node_neighbors, edge1, edge2, getComponent=False):
     currentNode= edge1[0]
-    nReachableBefore= getReachable(node_neighbors, currentNode)
+    reachableBefore= getReachable(node_neighbors, currentNode)
     # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
     node_neighbors[edge1[0]].remove(edge1[1])
     node_neighbors[edge1[1]].remove(edge1[0])
     node_neighbors[edge2[0]].remove(edge2[1])
     node_neighbors[edge2[1]].remove(edge2[0])
 
-    nReachableAfter= getReachable(node_neighbors, currentNode)
+    reachableAfter= getReachable(node_neighbors, currentNode)
     node_neighbors[edge1[0]].add(edge1[1])
     node_neighbors[edge1[1]].add(edge1[0])
     node_neighbors[edge2[0]].add(edge2[1])
     node_neighbors[edge2[1]].add(edge2[0])
-    if len(nReachableAfter)< len(nReachableBefore): # It is a 2 edge cut
+    if len(reachableAfter)< len(reachableBefore): # It is a 2 edge cut
         if getComponent:
-            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in nReachableAfter]
-            return True, nReachableAfter, otherVertices
+            otherVertices= [vertex for vertex in node_neighbors.keys() if vertex not in reachableAfter]
+            return True, reachableAfter, otherVertices
         else:
             return True
     else:
@@ -827,32 +837,71 @@ oneCuts, twoCuts = findCuts(hallways.keys(), specialPaths)
 print(f"the following bridges are onecuts: {oneCuts}")
 print(f"the following bridges are twocuts: {twoCuts}")
 
-def getEdgesComponent(allEdges, vertices, neighbourhood=None):
-    if neighbourhood ==None:
-        neighbourhood=getNeighbourhood(allEdges)
-    edges=[]
-    for edge, weight in allEdges.items():
-        # print(f"{edge}, is of type {type(edge)}")
+def getBuildings(vertices, nodeToCoordinate):
+    buildings=dict()
+    for vertex in vertices:
+        if vertex in nodeToCoordinate: #meaning that the vertex is not representing an elevator.
+            building= nodeToCoordinate[vertex]['Building']
+            floor= nodeToCoordinate[vertex]['Floor']
+            if building in buildings:
+                buildings[building].add(floor)
+            else:
+                buildings[building] = {floor}
+    return buildings
 
-    edgesComponent = [(v, n) for v in vertices for n in neighbourhood[v] if n in vertices] + [(n, v) for v in vertices for n in neighbourhood[v] if n in vertices]
-    if type(allEdges) == dict:
-        edgesComponentTry= [edge for edge in allEdges.items() if edge[0][0] in vertices if edge[0][1] in vertices]
-        # print(edgesComponentTry)
-        print(f"vertices:{vertices}")
-        for ecom in edgesComponent:
-            if ecom[0] not in vertices:
-                print(f"original list has {ecom}, with  the first element not in vertices")
-            if ecom[1] not in vertices:
-                print(f"original list has {ecom}, with the second element not in vertices")
-        print(f"as a list (keys): {edgesComponentTry}")
-        # print(f" is that equal to the original edges component? {list(edgesComponentTry.keys())==edgesComponent}")
-        print(f"since edges component original is: {edgesComponent}")
-        print(f"are they equal: {len(edgesComponentTry)}, and og: {len(edgesComponent)}, {edgesComponentTry == edgesComponent}")
+
+def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
+    if type(weightedEdges) != dict:
+        edges= dict()
+        for edge in weightedEdges:
+            edges[edge]=0
+    else:
+        edges = weightedEdges
+    # if neighbourhood ==None:
+    #     neighbourhood=getNeighbourhood(edges)
+    #
+    # edgesloopneighbourbased=set()
+    # for vertex in vertices:
+    #     for n in neighbourhood[vertex]:
+    #         if n in vertices:
+    #             edgesloopneighbourbased.add((min(vertex, n),max(vertex,n)))
+
+    edgesComponent= dict()
+    for edge, weight in edges.items():
+        if edge[0] in vertices:
+            if edge[1] in vertices:
+                edgesComponent[(min(edge[0], edge[1]), max(edge[0], edge[1]))]=weight
+
+    # print(f"lenth of edgeneighbourbased: {len(edgesloopneighbourbased)}")
+    print(f"length of edgetotalbased: {len(edgesComponent.keys())}")
+    # print(f"are they equal? {edgeslooptotalsetbased == edgesloopneighbourbased}")
+
+
+    # edges=[]
+    # for edge, weight in allEdges.items():
+    #     # print(f"{edge}, is of type {type(edge)}")
+    #
+    # edgesComponent = [(v, n) for v in vertices for n in neighbourhood[v] if n in vertices] + [(n, v) for v in vertices for n in neighbourhood[v] if n in vertices]
+    # if type(allEdges) == dict:
+    #     edgesComponentTry= [edge for edge in allEdges.items() if edge[0][0] in vertices if edge[0][1] in vertices]
+    #     # print(edgesComponentTry)
+    #     print(f"vertices:{vertices}")
+    #     for ecom in edgesComponent:
+    #         if ecom[0] not in vertices:
+    #             print(f"original list has {ecom}, with  the first element not in vertices")
+    #         if ecom[1] not in vertices:
+    #             print(f"original list has {ecom}, with the second element not in vertices")
+    #     print(f"as a list (keys): {edgesComponentTry}")
+    #     # print(f" is that equal to the original edges component? {list(edgesComponentTry.keys())==edgesComponent}")
+    #     print(f"since edges component original is: {edgesComponent}")
+    #     print(f"are they equal: {len(edgesComponentTry)}, and og: {len(edgesComponent)}, {edgesComponentTry == edgesComponent}")
+    #
     return edgesComponent
 
-def reduceGraphBridges(weigthededges, specialPaths):
+def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoordinate, ends=[]):
     neighbourhood= getNeighbourhood(weigthededges.keys())
     onecuts, twocuts = findCuts(weigthededges.keys(), specialPaths, neighbourhood)
+    onecuts=[]
     if len(onecuts) >0: #meaning that there are one cuts
         print(f"one cuts are: {onecuts}\n with keys: {onecuts.keys()}")
         #just take the first onecut and repeat the process.
@@ -863,30 +912,48 @@ def reduceGraphBridges(weigthededges, specialPaths):
         print(f"neighbourhood of the cut edge:{neighbourhood[onecutedge[0]]} and {neighbourhood[onecutedge[1]]}")
         # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
         # and the ones of onecut[1] are in c1 and building 1.
-        if onecutedge[0] in onecutinfo['Component1vertices']:
+        v0= onecutedge[0]
+        v1= onecutedge[1]
+        if v0 in onecutinfo['Component1vertices']:
             c0= onecutinfo['Component1vertices']
             c1= onecutinfo['Component2vertices']
         else:
             c0 = onecutinfo['Component2vertices']
             c1 = onecutinfo['Component1vertices']
 
-        building0 = nodeToCoordinate[onecutedge[0]]['Building']
-        building1 = nodeToCoordinate[onecutedge[1]]['Building']
-        edgesC0= getEdgesComponent(weigthededges, c0,neighbourhood)
-        edgesC0= getEdgesComponent(weigthededges, c1,neighbourhood)
+        building0 = nodeToCoordinate[v0]['Building']
+        building1 = nodeToCoordinate[v1]['Building']
+        edgesC0= getEdgesComponent(weigthededges, c0)
+        edgesC1= getEdgesComponent(weigthededges, c1)
 
-        print(f"building0 :{building0} and building1: {building1}")
-        # Tc0= reduceGraphBridges()
+        print(f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
+        # Now find the longest trail in c0, called Tc0, in c1, called Tc1
+        # Also find the longest trail in c0 starting in v0, called Tv0
+        # Also find the longest trail in c1 starting in v1, called Tv1,
+        # Then return the longest of Tc0, Tc1, Tv0+Tv1+w((v0,v1))
 
+        #check if we needed to start in a certain vertex and in which component that lies in.
+        assert len(ends) in [0,1,2] # Since the only options are for a component to have a mandatory start, end, both or none
+        if len(ends)==0: #meaning no restrictions on where to start or end
+            #
+            # Tc0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c0
+            # Tc1 = reduceGraphBridges(edgesC1, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c1
+            #
+            # Tv0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v0]) # longest trail in c0 that starts or ends in v0
+            # Tv1= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v1]) # longest trail in c1 that starts or ends in v1
+            #
+            print(f"as we had")
 
     else: # we connect the dummy vertex to all the points in the graph with no walking bridges, and find the longest trail
-        vdum= max(list(neighbourhood.keys()))
+        vdum= max(list(neighbourhood.keys()))+1
         neighbourhood[vdum] = set(range(vdum))
-        for i in range(nextnode):
+        print(f"WE SET VDUM={vdum} AND ADDED THE KEY TO NEIGHBOURHOOD")
+        for i in range(vdum):
             weigthededges[(vdum, i)]=0
             neighbourhood[i].add(vdum)
-        model, varshall, varsdegree = runModel(weigthededges, vdum, maxtime=15, printtime=15,
-                                               logfile="\\log0801try1.log")
+
+        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=15, printtime=15,
+                                               logfile="\\log0801try1.log", ends=ends)
         lengthLongestTrail=model.getAttr('ObjVal')
         print(f"The longest trail is {lengthLongestTrail} meters long")
         used_edges= getEdgesResult(model, varshall)
@@ -913,7 +980,7 @@ def reduceGraphBridges(weigthededges, specialPaths):
 
 
 
-reduceGraphBridges(hallways, specialPaths)
+reduceGraphBridges(hallways, elevatorVertices, specialPaths, nodeToCoordinate)
 # # Add hallways to the dummy vertex:
 # vdum= nextnode
 # nextnode += 1
