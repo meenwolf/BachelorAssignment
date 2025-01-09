@@ -110,7 +110,7 @@ class TSPCallback:
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
-def runModel(halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
+def runModel(folder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
     if nvdum== None:
         nvdum=max(list(neighbours.keys()))
 
@@ -133,7 +133,7 @@ def runModel(halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             datenew = date.replace(':', '-')
             logfile = "\\log" + datenew + ".log"
-        m.Params.LogFile= PATH_test+logfile
+        m.Params.LogFile= folder+logfile
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
 
@@ -699,7 +699,7 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    model, varshall, varsdegree = runModel(hallwaysnew, neighboursnew, maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
+    model, varshall, varsdegree = runModel(PATH_test, hallwaysnew, neighboursnew, maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
 
     lengthLongestTrail=model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")

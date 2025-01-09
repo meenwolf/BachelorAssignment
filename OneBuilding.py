@@ -168,9 +168,8 @@ if __name__ == "__main__":
         trailresult = constructTrail(used_edges, vdummy)
         if type(prefixdrawcomp) == str:
             drawEdgesInFloorplans(trailresult, nodeToCoordinate, elevatorEdges, specialEdges, figuresResultBuildings,
-                                  PATH_result, prefixfilename=prefixdrawcomp)
+                                  folder, prefixfilename=prefixdrawcomp)
         if type(plotbounds)==str:
-            logfolder = PATH_test
             plotBounds(folder, logfile, plotbounds, showresult=True, savename=f'{datenew}.svg')
 
         return trailresult
