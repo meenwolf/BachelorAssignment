@@ -768,44 +768,5 @@ titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3
 boundplotname = f'{datenew}.svg'
 reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, neighbours=neighbours,
-                       maxtime=10, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
+                       maxtime=1200, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
                        prefixdrawcomp='testingmorebuildings', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
-# # Add hallways to the dummy vertex:
-# vdum= nextnode
-# nextnode += 1
-# print(f"neighbourhoods are: {neighbours}")
-# print(f"are all vertices reachable from vertex 1 before adding dummy vertex?? {len(getReachable(neighbours, 1))==vdum}")
-# #
-# # def addDummy(neighbourhood):
-# #     vdum= max(list(neighbourhood.keys()))
-# neighbours[vdum]= set(range(vdum))
-#
-# for i in range(nextnode):
-#     hallways[(vdum, i)]=0
-#     neighbours[i].add(vdum)
-#
-#
-# print(f"Neighbours old is new? {neighboursold==neighbours}")
-#
-# model, varshall, varsdegree = runModel(hallways, vdum, maxtime=15, printtime= 15, logfile= "\\log0801try1.log")
-# lengthLongestTrail=model.getAttr('ObjVal')
-# print(f"The longest trail is {lengthLongestTrail} meters long")
-# used_edges= getEdgesResult(model, varshall)
-# print(f"we have {vdum} as dummy vertex")
-# print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
-# pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
-# trailresult= constructTrail(used_edges, vdum)
-# print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
-# drawEdgesInFloorplans(trailresult)
-# results = glt.parse(PATH+"\\log0801try1.log")
-# nodelogs = results.progress("nodelog")
-# pd.set_option("display.max_columns", None)
-# print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
-# print(nodelogs.head(10))
-# fig = go.Figure()
-# fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
-# fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
-# fig.update_xaxes(title_text="Runtime in seconds")
-# fig.update_yaxes(title_text="Objective value function (in meters)")
-# fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
-# fig.show()
