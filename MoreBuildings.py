@@ -1,255 +1,26 @@
-import sys
 from OneBuilding import *
+import sys
+import json
 
+# Start exporting hallways: dict with keys: (v1, v2) representing an edge between vertex v1 and vertex v2, values are the weights of the hallway in real life
+# nodeToCoordinate: dict with keys: v1, representing the vertex v1, and values a dict containing the building, floor and coordinate on that floor of vertex v1, example: v1:{"Building": "CARRE 1412", "Floor": "3", "Location": 100.9347+221.876j}
+# buildingScales: dict with keys the building names, and the values a dict that contains for each floor the scale x. (that is: 1meter in real life: distance x in the floor plan)
+# Convert and write JSON object to file
 
-# Get the path to the drawings
-dir_path = os.path.dirname(os.path.realpath(__file__))
-PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
+def exportGraphinfo(halls, nodeToCoordinate, scales):
+    weightedEdges = [{'key': key, 'value': value} for key, value in halls.items()]
+    with open("weigthedEdges.json", "w") as outfile:
+        json.dump(weightedEdges, outfile)
 
-PATH_drawings= PATH +"\\TestMoreBuildings\\OriginalPaths"
-PATH_empty= PATH+"\\TestMoreBuildings\\EmptyFloorplans"
-PATH_result= PATH+"\\TestMoreBuildings\\ResultFloorplans"
-PATH_logs= PATH+"\\TestMoreBuildings\\Logs"
-if not os.path.exists(PATH_logs):
-    os.mkdir(PATH_logs)
+    nodeToCoordinates = {vertex: {'Building': info["Building"], "Floor": info["Floor"], "x": np.real(info["Location"]),
+                                  "y": np.imag(info["Location"])} for vertex, info in nodeToCoordinate.items()}
+    with open("nodeToCoordinates.json", "w") as outfile:
+        json.dump(nodeToCoordinates, outfile)
 
-# Initiate some data structures to save information in
-nodeToCoordinate={}
-coordinateToNode={}
+    with open("buildingScales.json", "w") as outfile:
+        json.dump(scales, outfile)
 
-nextnode=0
-
-specialPaths={}
-specialEdges={}
-hallways={}
-
-figuresResultBuildings  = dict()
-
-# Measured, but made up for now, bridge lengths:
-bridgeLengths={"C01CRWA": 10, "C01WACR": 10, "C01CRNL": 10, "C01NLCR": 10, "C01CRWH": 10, "C01WHCR": 10, "C01CIRA": 10, "C01RACI": 10,
-               "C01ZHNL": 10, "C01NLZH": 10, "C01RAZI": 10, "C01ZIRA": 10, }
-
-# Loop over the files to save a file where we can draw the resulting longest paths in
-# distfloorci=dict()
-# edgesRAfive=[]
-for building in os.listdir(PATH_drawings):
-    if 'WAAIER' in building:
-        continue
-    if 'CITADEL' in building:
-        continue
-    if 'RAVELIJN' in building:
-        continue
-    if 'ZILVERLING' in building:
-        continue
-    buildingEmpty= PATH_empty+f"\\{building}"
-    listOfFiles = os.listdir(buildingEmpty)
-    for file in listOfFiles:
-        if file.endswith(".svg"):
-            floor= file.split('.')[1]
-
-            newFigurePath = buildingEmpty + f"\\{file}"
-
-            tree = ET.parse(newFigurePath)
-            root = tree.getroot()
-
-            # Set the width and height to prevent the result file to be of A4 size or in any case not showing the final result in microsoft edge(in inkscape it still showed the correct file)
-            root.attrib["width"] = "100%"
-            root.attrib["height"] = "100%"
-            ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
-
-            if building in figuresResultBuildings:
-                figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
-            else:
-                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
-
-            #Now start extracting the path information
-            paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
-            lengthForOneMeter= 1
-            for path, attr in zip(paths, attributes):
-                if "inkscape:label" in attr.keys():
-                    if "1mtr" in attr['inkscape:label']:
-                        print(f"the scale label is: {attr['inkscape:label']}")
-                        lengthForOneMeter = abs(path.start - path.end)
-                        break
-            for path, attr in zip(paths, attributes):
-                for i, line in enumerate(path):
-                    start = np.round(line.start, 3)
-                    end = np.round(line.end, 3)
-
-                    edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
-                    specialPath = False
-                    if "inkscape:label" in attr.keys():
-                        if 'mtr' in attr['inkscape:label']:
-                            continue
-                        elif not 'path' in attr['inkscape:label']: #meaning that we did not delete the name of a path in inkscape (e.g. chaning it on accident, and delete the wrong name)
-                            specialPath = True
-
-                    if not (start, building, floor) in coordinateToNode:
-                        coordinateToNode[(start, building, floor)] = nextnode
-                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': start}
-                        snode = nextnode
-                        nextnode += 1
-                    else:
-                        snode = coordinateToNode[(start, building, floor)]
-
-                    if not (end, building, floor) in coordinateToNode:
-                        coordinateToNode[(end, building, floor)] = nextnode
-                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': end}
-                        enode = nextnode
-                        nextnode += 1
-                    else:
-                        enode = coordinateToNode[(end, building, floor)]
-
-                    if specialPath:
-                        specialPaths[attr['inkscape:label']] = {'Start': {'Vnum': snode, "Location": start},
-                                                                         "End": {"Vnum": enode, "Location": end},
-                                                                         'Building': building, 'Floor': floor}
-
-                        specialEdges[(snode, enode)]=attr['inkscape:label']
-                        specialEdges[(enode, snode)]=attr['inkscape:label']
-
-                    hallways[(snode, enode)] = edgeweight
-
-print(figuresResultBuildings)
-print(f"the special paths of size {sys.getsizeof(specialPaths)} bytes are:")
-pprint(specialPaths)
-print(f"special edges of size {sys.getsizeof(specialEdges)} bytes are \n {specialEdges}:")
-print("The hallways of size {sys.getsizeof(hallways)} bytes are:")
-pprint(hallways)
-print(f"next node is dummy vertex number: {nextnode}")
-# Define a dictionary where each vertex maps to a set of its neighbours
-
-neighboursold = getNeighbourhood(hallways.keys())
-print(f" neighboursold is of size: {sys.getsizeof(neighboursold)} bytes")
-
-
-neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
-# Connections regarding staircases, elevators and connections between buildings
-print(f" neighbours is of size: {sys.getsizeof(neighbours)} bytes")
-
-#Connect special paths, elevators first:
-#CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
-
-elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
-elevatorEdges=set()
-connected=[]
-addedBridges=dict()
-for pathname, pathinfo in specialPaths.items():
-    if pathname[2]=="E": #We have an edge to an elevator
-        startname = pathname[:5]
-        if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
-            # print(startname)
-            elevatorConnects=[key for key in specialPaths.keys() if startname in key]
-            velevator= nextnode
-            elevatorVertices[startname]=velevator
-            nextnode+=1
-            neighbours[velevator]=set()
-            for edge in elevatorConnects:
-                end= findSingleEnd(edge, neighboursold, specialPaths)
-                hallways[(end, velevator)]=1
-                elevatorEdges.add((end, velevator))
-                elevatorEdges.add((velevator,end))
-                neighbours[end].add(velevator)
-                neighbours[velevator].add(end)
-            connected.append(startname)
-    elif pathname[2] == "S": #We have an edge to a staircase
-        if pathname not in connected: # if we have not connected these two floors with this staircase
-            end1= findSingleEnd(pathname, neighboursold, specialPaths)
-            otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
-            if otherSide in specialPaths:
-                # print(f"original stair:{pathname}, other side:{otherSide}")
-                end2=findSingleEnd(otherSide, neighboursold, specialPaths)
-                hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
-                neighbours[end1].add(end2)
-                neighbours[end2].add(end1)
-                connected.append(pathname)
-                connected.append(otherSide)
-    elif pathname[1] == "0": #connecting buildings? naming conv?
-        # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
-        print(f"connection building from CR:{pathname} but we deal with this when we find the other end this bridge is connected to.")
-    elif pathname[2] == "C":
-        buildingOfEdge= pathname[0:2]
-        buildingToEdge= pathname[5:7]
-        connection= pathname[2:5]
-        #Since this edge represents a hallway drawn in buildingOfEdge and connects to the bridge connection between this building en buildingToedge,
-        #The bridge itself is not drawn into the floorplan, but let's check for that anyway:
-        bridgeName= connection+buildingOfEdge+buildingToEdge
-        otherSide = buildingToEdge+connection+buildingOfEdge
-        otherBridgeName = connection + buildingToEdge + buildingOfEdge
-        # print(f"This hallway {pathname} ends at a walking bridge{bridgeName} or {otherBridgeName} and the other side is: {otherSide}")
-
-        if  bridgeName in specialPaths.keys():
-            # if 'and' not in specialPaths[bridgeName]['Building']: #check that we did not add this bridge in the code but in inkscape
-            if bridgeName not in connected:
-                if otherSide in specialPaths:
-                    print(f"????THE???? walking bridge is connected to edge {pathname} in the same building. I overdid the naming and will connect this hallway to the otherSide")
-                    end1= findSingleEnd(bridgeName, neighboursold, specialPaths)
-                    end2=findSingleEnd(otherSide, neighboursold, specialPaths)
-                    hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
-                    neighbours[end1].add(end2)
-                    neighbours[end2].add(end1)
-                    connected.append(pathname)
-                    connected.append(bridgeName)
-                    connected.append(otherSide)
-                else:
-                    print(f"the other building is not drawn into so we cannot connect the walking bridge for which we overdid the naming on the other end")
-            else:
-                print(f"overdid the naming, but already connected this hallway, so just continue")
-        elif pathname not in connected:
-            print(f"We did not connect this endpoint yet")
-            #Check if the bridge is drawn into the other buildings floorplan
-            if otherBridgeName in specialPaths.keys():
-
-                print(f"The bridge is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
-                #We find the end of edge pathname and of edge otherBridgeName and connect them with an edge of weight zero
-                end1= findSingleEnd(pathname, neighboursold, specialPaths)
-                end2= findSingleEnd(otherBridgeName, neighboursold, specialPaths)
-                hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
-                neighbours[end1].add(end2)
-                neighbours[end2].add(end1)
-                connected.append(pathname)
-                connected.append(otherBridgeName)
-                #to be sure also append the other side of this connection (for if I overdid the naming of the drawn in edges)
-                connected.append(otherSide)
-            elif otherSide not in specialPaths:
-                print(f"we have not yet drawn in the floorplans of the other building so we cannot connect edge: {pathname}")
-            else:
-                print(f"We did draw the paths in the other building of the bridge between {pathname} and {otherSide}. Have to measure this bridge by hand and connects the two ends of bridge with an edge of this length.")
-                lenbridge= bridgeLengths[bridgeName]
-                end1 = findSingleEnd(pathname, neighboursold, specialPaths)
-                print(f"end1: {end1}: {nodeToCoordinate[end1]}")
-                end2 = findSingleEnd(otherSide, neighboursold, specialPaths)
-                print(f"end2: {end2}: {nodeToCoordinate[end2]}")
-
-                hallways[(end1, end2)] = lenbridge  # Connect the endpoint of a bridge to the corresponding entry of the other building
-                addedBridges[bridgeName]= {'Building': buildingOfEdge+' and '+buildingToEdge,
-             'End': {'Location': nodeToCoordinate[end2]['Location'], 'Vnum': end2},
-             'Floor': nodeToCoordinate[end2]['Floor'],
-             'Start': {'Location': nodeToCoordinate[end1]['Location'], 'Vnum': end1}}
-                neighbours[end1].add(end2)
-                neighbours[end2].add(end1)
-                connected.append(pathname)
-                connected.append(otherSide)
-        else:
-            print(f"We already connected this bridge.")
-
-    elif pathname[2]=='X':
-        print(f"we have an exit to outdoors: {pathname}")
-    else:
-        print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
-
-specialPaths.update(addedBridges)
-print(f"the updated special paths is of size {sys.getsizeof(specialPaths)} bytes")
-print(f"the updated neighbours is of size {sys.getsizeof(neighbours)} bytes")
-print(f"the updated hallways is of size {sys.getsizeof(hallways)} bytes")
-
-print(f"the elevatorVertices is of size {sys.getsizeof(elevatorVertices)} bytes")
-print(f"the elevatorEdges is of size {sys.getsizeof(elevatorEdges)} bytes")
-print(f"the connected is of size {sys.getsizeof(connected)} bytes")
-print(f"the addedBridges is of size {sys.getsizeof(addedBridges)} bytes")
-
-
-def runModel(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
+def runModel2(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
     print(f"keys of neighbourhood:{neighbourhood.keys()}")
     m = Model()
     # m.Params.Aggregate=2
@@ -599,11 +370,6 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     return onecuts, twocuts
 
 
-oneCuts, twoCuts = findCuts(edges=hallways.keys(), specialPaths=specialPaths)
-
-print(f"the following bridges are onecuts: {oneCuts}")
-print(f"the following bridges are twocuts: {twoCuts}")
-
 def getBuildings(vertices, nodeToCoordinate):
     buildings=dict()
     for vertex in vertices:
@@ -624,14 +390,6 @@ def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
             edges[edge]=0
     else:
         edges = weightedEdges
-    # if neighbourhood ==None:
-    #     neighbourhood=getNeighbourhood(edges)
-    #
-    # edgesloopneighbourbased=set()
-    # for vertex in vertices:
-    #     for n in neighbourhood[vertex]:
-    #         if n in vertices:
-    #             edgesloopneighbourbased.add((min(vertex, n),max(vertex,n)))
 
     edgesComponent= dict()
     for edge, weight in edges.items():
@@ -639,134 +397,359 @@ def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
             if edge[1] in vertices:
                 edgesComponent[(min(edge[0], edge[1]), max(edge[0], edge[1]))]=weight
 
-    # print(f"lenth of edgeneighbourbased: {len(edgesloopneighbourbased)}")
     print(f"length of edgetotalbased: {len(edgesComponent.keys())}")
-    # print(f"are they equal? {edgeslooptotalsetbased == edgesloopneighbourbased}")
-
-
-    # edges=[]
-    # for edge, weight in allEdges.items():
-    #     # print(f"{edge}, is of type {type(edge)}")
-    #
-    # edgesComponent = [(v, n) for v in vertices for n in neighbourhood[v] if n in vertices] + [(n, v) for v in vertices for n in neighbourhood[v] if n in vertices]
-    # if type(allEdges) == dict:
-    #     edgesComponentTry= [edge for edge in allEdges.items() if edge[0][0] in vertices if edge[0][1] in vertices]
-    #     # print(edgesComponentTry)
-    #     print(f"vertices:{vertices}")
-    #     for ecom in edgesComponent:
-    #         if ecom[0] not in vertices:
-    #             print(f"original list has {ecom}, with  the first element not in vertices")
-    #         if ecom[1] not in vertices:
-    #             print(f"original list has {ecom}, with the second element not in vertices")
-    #     print(f"as a list (keys): {edgesComponentTry}")
-    #     # print(f" is that equal to the original edges component? {list(edgesComponentTry.keys())==edgesComponent}")
-    #     print(f"since edges component original is: {edgesComponent}")
-    #     print(f"are they equal: {len(edgesComponentTry)}, and og: {len(edgesComponent)}, {edgesComponentTry == edgesComponent}")
-    #
     return edgesComponent
+if __name__ == "__main__":
 
-def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings,
-                       nodeToCoordinate, elevatorEdges=[], ends=[],neighbours=None,
-                       maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
-                       prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
-    neighbourhood= getNeighbourhood(edges.keys())
-    onecuts, twocuts = findCuts(edges=edges.keys(), specialPaths=specialPaths, neighbourhood=neighbourhood)
-    onecuts=[]
-    if len(onecuts) >0: #meaning that there are one cuts
-        print(f"one cuts are: {onecuts}\n with keys: {onecuts.keys()}")
-        #just take the first onecut and repeat the process.
-        onecutedge= list(onecuts.keys())[0]
-        onecutinfo= onecuts[onecutedge]
-        print(f"onecutedge:{onecutedge} with: {nodeToCoordinate[onecutedge[0]]} and \n {nodeToCoordinate[onecutedge[1]]}")
-        print(f"onecutinfo: {onecutinfo}")
-        print(f"neighbourhood of the cut edge:{neighbourhood[onecutedge[0]]} and {neighbourhood[onecutedge[1]]}")
-        # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
-        # and the ones of onecut[1] are in c1 and building 1.
-        v0= onecutedge[0]
-        v1= onecutedge[1]
-        if v0 in onecutinfo['Component1vertices']:
-            c0= onecutinfo['Component1vertices']
-            c1= onecutinfo['Component2vertices']
+    # Get the path to the drawings
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
+
+    PATH_drawings= PATH +"\\TestMoreBuildings\\OriginalPaths"
+    PATH_empty= PATH+"\\TestMoreBuildings\\EmptyFloorplans"
+    PATH_result= PATH+"\\TestMoreBuildings\\ResultFloorplans"
+    PATH_logs= PATH+"\\TestMoreBuildings\\Logs"
+    if not os.path.exists(PATH_logs):
+        os.mkdir(PATH_logs)
+
+    # Initiate some data structures to save information in
+    nodeToCoordinate={}
+    coordinateToNode={}
+
+    nextnode=0
+
+    specialPaths={}
+    specialEdges={}
+    hallways={}
+
+    figuresResultBuildings  = dict()
+
+    # Measured, but made up for now, bridge lengths:
+    bridgeLengths={"C01CRWA": 10, "C01WACR": 10, "C01CRNL": 10, "C01NLCR": 10, "C01CRWH": 10, "C01WHCR": 10, "C01CIRA": 10, "C01RACI": 10,
+                   "C01ZHNL": 10, "C01NLZH": 10, "C01RAZI": 10, "C01ZIRA": 10, }
+
+    # Loop over the files to save a file where we can draw the resulting longest paths in
+    buildingScales=dict()
+    for building in os.listdir(PATH_drawings):
+        if 'WAAIER' in building:
+            continue
+        # if 'CITADEL' in building:
+        #     continue
+        # if 'RAVELIJN' in building:
+        #     continue
+        # if 'ZILVERLING' in building:
+        #     continue
+        buildingEmpty= PATH_empty+f"\\{building}"
+        listOfFiles = os.listdir(buildingEmpty)
+        for file in listOfFiles:
+            if file.endswith(".svg"):
+                floor= file.split('.')[1]
+
+                newFigurePath = buildingEmpty + f"\\{file}"
+
+                tree = ET.parse(newFigurePath)
+                root = tree.getroot()
+
+                # Set the width and height to prevent the result file to be of A4 size or in any case not showing the final result in microsoft edge(in inkscape it still showed the correct file)
+                root.attrib["width"] = "100%"
+                root.attrib["height"] = "100%"
+                ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+
+                if building in figuresResultBuildings:
+                    figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
+                else:
+                    figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
+
+                #Now start extracting the path information
+                paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
+                lengthForOneMeter= 1
+                for path, attr in zip(paths, attributes):
+                    if "inkscape:label" in attr.keys():
+                        if "1mtr" in attr['inkscape:label']:
+                            print(f"the scale label is: {attr['inkscape:label']}")
+                            lengthForOneMeter = abs(path.start - path.end)
+                            if building in buildingScales:
+                                buildingScales[building][floor]=lengthForOneMeter
+                            else:
+                                buildingScales[building]={floor : lengthForOneMeter}
+                            break
+                for path, attr in zip(paths, attributes):
+                    for i, line in enumerate(path):
+                        start = np.round(line.start, 3)
+                        end = np.round(line.end, 3)
+
+                        edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
+                        specialPath = False
+                        if "inkscape:label" in attr.keys():
+                            if 'mtr' in attr['inkscape:label']:
+                                continue
+                            elif not 'path' in attr['inkscape:label']: #meaning that we did not delete the name of a path in inkscape (e.g. chaning it on accident, and delete the wrong name)
+                                specialPath = True
+
+                        if not (start, building, floor) in coordinateToNode:
+                            coordinateToNode[(start, building, floor)] = nextnode
+                            nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': start}
+                            snode = nextnode
+                            nextnode += 1
+                        else:
+                            snode = coordinateToNode[(start, building, floor)]
+
+                        if not (end, building, floor) in coordinateToNode:
+                            coordinateToNode[(end, building, floor)] = nextnode
+                            nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': end}
+                            enode = nextnode
+                            nextnode += 1
+                        else:
+                            enode = coordinateToNode[(end, building, floor)]
+
+                        if specialPath:
+                            specialPaths[attr['inkscape:label']] = {'Start': {'Vnum': snode, "Location": start},
+                                                                             "End": {"Vnum": enode, "Location": end},
+                                                                             'Building': building, 'Floor': floor}
+
+                            specialEdges[(snode, enode)]=attr['inkscape:label']
+                            specialEdges[(enode, snode)]=attr['inkscape:label']
+
+                        hallways[(snode, enode)] = edgeweight
+
+    print(figuresResultBuildings)
+    print(f"the special paths of size {sys.getsizeof(specialPaths)} bytes are:")
+    pprint(specialPaths)
+    print(f"special edges of size {sys.getsizeof(specialEdges)} bytes are \n {specialEdges}:")
+    print("The hallways of size {sys.getsizeof(hallways)} bytes are:")
+    pprint(hallways)
+    print(f"next node is dummy vertex number: {nextnode}")
+    # Define a dictionary where each vertex maps to a set of its neighbours
+
+    neighboursold = getNeighbourhood(hallways.keys())
+    print(f" neighboursold is of size: {sys.getsizeof(neighboursold)} bytes")
+
+
+    neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
+    # Connections regarding staircases, elevators and connections between buildings
+    print(f" neighbours is of size: {sys.getsizeof(neighbours)} bytes")
+
+    #Connect special paths, elevators first:
+    #CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
+
+    elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
+    elevatorEdges=set()
+    connected=[]
+    addedBridges=dict()
+    for pathname, pathinfo in specialPaths.items():
+        if pathname[2]=="E": #We have an edge to an elevator
+            startname = pathname[:5]
+            if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
+                # print(startname)
+                elevatorConnects=[key for key in specialPaths.keys() if startname in key]
+                velevator= nextnode
+                elevatorVertices[startname]=velevator
+                nextnode+=1
+                neighbours[velevator]=set()
+                for edge in elevatorConnects:
+                    end= findSingleEnd(edge, neighboursold, specialPaths)
+                    hallways[(end, velevator)]=1
+                    elevatorEdges.add((end, velevator))
+                    elevatorEdges.add((velevator,end))
+                    neighbours[end].add(velevator)
+                    neighbours[velevator].add(end)
+                connected.append(startname)
+        elif pathname[2] == "S": #We have an edge to a staircase
+            if pathname not in connected: # if we have not connected these two floors with this staircase
+                end1= findSingleEnd(pathname, neighboursold, specialPaths)
+                otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
+                if otherSide in specialPaths:
+                    # print(f"original stair:{pathname}, other side:{otherSide}")
+                    end2=findSingleEnd(otherSide, neighboursold, specialPaths)
+                    hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
+                    neighbours[end1].add(end2)
+                    neighbours[end2].add(end1)
+                    connected.append(pathname)
+                    connected.append(otherSide)
+        elif pathname[1] == "0": #connecting buildings? naming conv?
+            # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
+            print(f"connection building from CR:{pathname} but we deal with this when we find the other end this bridge is connected to.")
+        elif pathname[2] == "C":
+            buildingOfEdge= pathname[0:2]
+            buildingToEdge= pathname[5:7]
+            connection= pathname[2:5]
+            #Since this edge represents a hallway drawn in buildingOfEdge and connects to the bridge connection between this building en buildingToedge,
+            #The bridge itself is not drawn into the floorplan, but let's check for that anyway:
+            bridgeName= connection+buildingOfEdge+buildingToEdge
+            otherSide = buildingToEdge+connection+buildingOfEdge
+            otherBridgeName = connection + buildingToEdge + buildingOfEdge
+            # print(f"This hallway {pathname} ends at a walking bridge{bridgeName} or {otherBridgeName} and the other side is: {otherSide}")
+
+            if  bridgeName in specialPaths.keys():
+                # if 'and' not in specialPaths[bridgeName]['Building']: #check that we did not add this bridge in the code but in inkscape
+                if bridgeName not in connected:
+                    if otherSide in specialPaths:
+                        print(f"????THE???? walking bridge is connected to edge {pathname} in the same building. I overdid the naming and will connect this hallway to the otherSide")
+                        end1= findSingleEnd(bridgeName, neighboursold, specialPaths)
+                        end2=findSingleEnd(otherSide, neighboursold, specialPaths)
+                        hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
+                        neighbours[end1].add(end2)
+                        neighbours[end2].add(end1)
+                        connected.append(pathname)
+                        connected.append(bridgeName)
+                        connected.append(otherSide)
+                    else:
+                        print(f"the other building is not drawn into so we cannot connect the walking bridge for which we overdid the naming on the other end")
+                else:
+                    print(f"overdid the naming, but already connected this hallway, so just continue")
+            elif pathname not in connected:
+                print(f"We did not connect this endpoint yet")
+                #Check if the bridge is drawn into the other buildings floorplan
+                if otherBridgeName in specialPaths.keys():
+
+                    print(f"The bridge is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
+                    #We find the end of edge pathname and of edge otherBridgeName and connect them with an edge of weight zero
+                    end1= findSingleEnd(pathname, neighboursold, specialPaths)
+                    end2= findSingleEnd(otherBridgeName, neighboursold, specialPaths)
+                    hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
+                    neighbours[end1].add(end2)
+                    neighbours[end2].add(end1)
+                    connected.append(pathname)
+                    connected.append(otherBridgeName)
+                    #to be sure also append the other side of this connection (for if I overdid the naming of the drawn in edges)
+                    connected.append(otherSide)
+                elif otherSide not in specialPaths:
+                    print(f"we have not yet drawn in the floorplans of the other building so we cannot connect edge: {pathname}")
+                else:
+                    print(f"We did draw the paths in the other building of the bridge between {pathname} and {otherSide}. Have to measure this bridge by hand and connects the two ends of bridge with an edge of this length.")
+                    lenbridge= bridgeLengths[bridgeName]
+                    end1 = findSingleEnd(pathname, neighboursold, specialPaths)
+                    print(f"end1: {end1}: {nodeToCoordinate[end1]}")
+                    end2 = findSingleEnd(otherSide, neighboursold, specialPaths)
+                    print(f"end2: {end2}: {nodeToCoordinate[end2]}")
+
+                    hallways[(end1, end2)] = lenbridge  # Connect the endpoint of a bridge to the corresponding entry of the other building
+                    addedBridges[bridgeName]= {'Building': buildingOfEdge+' and '+buildingToEdge,
+                 'End': {'Location': nodeToCoordinate[end2]['Location'], 'Vnum': end2},
+                 'Floor': nodeToCoordinate[end2]['Floor'],
+                 'Start': {'Location': nodeToCoordinate[end1]['Location'], 'Vnum': end1}}
+                    neighbours[end1].add(end2)
+                    neighbours[end2].add(end1)
+                    connected.append(pathname)
+                    connected.append(otherSide)
+            else:
+                print(f"We already connected this bridge.")
+
+        elif pathname[2]=='X':
+            print(f"we have an exit to outdoors: {pathname}")
         else:
-            c0 = onecutinfo['Component2vertices']
-            c1 = onecutinfo['Component1vertices']
+            print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
-        building0 = nodeToCoordinate[v0]['Building']
-        building1 = nodeToCoordinate[v1]['Building']
-        edgesC0= getEdgesComponent(edges, c0)
-        edgesC1= getEdgesComponent(edges, c1)
-
-        print(f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
-        # Now find the longest trail in c0, called Tc0, in c1, called Tc1
-        # Also find the longest trail in c0 starting in v0, called Tv0
-        # Also find the longest trail in c1 starting in v1, called Tv1,
-        # Then return the longest of Tc0, Tc1, Tv0+Tv1+w((v0,v1))
-
-        #check if we needed to start in a certain vertex and in which component that lies in.
-        assert len(ends) in [0,1,2] # Since the only options are for a component to have a mandatory start, end, both or none
-        if len(ends)==0: #meaning no restrictions on where to start or end
-            #
-            # Tc0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c0
-            # Tc1 = reduceGraphBridges(edgesC1, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c1
-            #
-            # Tv0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v0]) # longest trail in c0 that starts or ends in v0
-            # Tv1= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v1]) # longest trail in c1 that starts or ends in v1
-            #
-            print(f"as we had")
-
-    elif True:
-        trailcomp= findTrailComponent(logfolder=logfolder, resultfolder=resultfolder, edges=edges, specialEdges=specialEdges,
-                           figuresResultBuildings=figuresResultBuildings, nodeToCoordinate=nodeToCoordinate,elevatorEdges=elevatorEdges,neighbours=neighbours, maxtime=maxtime,
-                           maxgap=maxgap, printtime=printtime, logfile=logfile, elevatorVertices=elevatorVertices,
-                           prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname, showboundplot=showboundplot,
-                           saveboundplotname=saveboundplotname)
-        return trailcomp
-        # findTrailComponent(logfolder=PATH_log, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, neighbours=neighbours,
-        #                    maxtime=10, maxgap=None, printtime=5, logfile=False, elevatorVertices=[],
-        #                    prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False)
-        #
-    else: # we connect the dummy vertex to all the points in the graph with no walking bridges, and find the longest trail
-        #For now it is left in an unattained part, since I have to use the function of the other file to do this.
-        vdum= max(list(neighbourhood.keys()))+1
-        neighbourhood[vdum] = set(range(vdum))
-        print(f"WE SET VDUM={vdum} AND ADDED THE KEY TO NEIGHBOURHOOD")
-        for i in range(vdum):
-            weigthededges[(vdum, i)]=0
-            neighbourhood[i].add(vdum)
-
-        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=600, printtime=15,
-                                               logfile="\\log0801try2.log", ends=ends)
-        lengthLongestTrail=model.getAttr('ObjVal')
-        print(f"The longest trail is {lengthLongestTrail} meters long")
-        used_edges= getEdgesResult(model, varshall)
-        print(f"we have {vdum} as dummy vertex")
-        print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
-        pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
-        trailresult= constructTrail(used_edges, vdum)
-        return trailresult
-        # print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
-        # drawEdgesInFloorplans(trailresult)
-        # results = glt.parse(PATH+"\\log0801try1.log")
-        # nodelogs = results.progress("nodelog")
-        # pd.set_option("display.max_columns", None)
-        # print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
-        # print(nodelogs.head(10))
-        # fig = go.Figure()
-        # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
-        # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
-        # fig.update_xaxes(title_text="Runtime in seconds")
-        # fig.update_yaxes(title_text="Objective value function (in meters)")
-        # fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
-        # fig.show()
+    specialPaths.update(addedBridges)
 
 
-date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-datenew = date.replace(':', '-')
-logfile = "\\log" + datenew + ".log"
+    oneCuts, twoCuts = findCuts(edges=hallways.keys(), specialPaths=specialPaths)
 
-titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
-boundplotname = f'{datenew}.svg'
-reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
-                   figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, neighbours=neighbours,
-                       maxtime=1200, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
-                       prefixdrawcomp='testingmorebuildings', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    print(f"the following bridges are onecuts: {oneCuts}")
+    print(f"the following bridges are twocuts: {twoCuts}")
+
+    def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings,
+                           nodeToCoordinate, elevatorEdges=[], ends=[],neighbours=None,
+                           maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
+                           prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
+        if neighbours ==None:
+            neighbours= getNeighbourhood(edges.keys())
+        onecuts, twocuts = findCuts(edges=edges.keys(), specialPaths=specialPaths, neighbourhood=neighbours)
+        onecuts=[]
+        if len(onecuts) >0: #meaning that there are one cuts
+            print(f"one cuts are: {onecuts}\n with keys: {onecuts.keys()}")
+            #just take the first onecut and repeat the process.
+            onecutedge= list(onecuts.keys())[0]
+            onecutinfo= onecuts[onecutedge]
+            print(f"onecutedge:{onecutedge} with: {nodeToCoordinate[onecutedge[0]]} and \n {nodeToCoordinate[onecutedge[1]]}")
+            print(f"onecutinfo: {onecutinfo}")
+            print(f"neighbourhood of the cut edge:{neighbours[onecutedge[0]]} and {neighbours[onecutedge[1]]}")
+            # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
+            # and the ones of onecut[1] are in c1 and building 1.
+            v0= onecutedge[0]
+            v1= onecutedge[1]
+            if v0 in onecutinfo['Component1vertices']:
+                c0= onecutinfo['Component1vertices']
+                c1= onecutinfo['Component2vertices']
+            else:
+                c0 = onecutinfo['Component2vertices']
+                c1 = onecutinfo['Component1vertices']
+
+            building0 = nodeToCoordinate[v0]['Building']
+            building1 = nodeToCoordinate[v1]['Building']
+            edgesC0= getEdgesComponent(edges, c0)
+            edgesC1= getEdgesComponent(edges, c1)
+
+            print(f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
+            # Now find the longest trail in c0, called Tc0, in c1, called Tc1
+            # Also find the longest trail in c0 starting in v0, called Tv0
+            # Also find the longest trail in c1 starting in v1, called Tv1,
+            # Then return the longest of Tc0, Tc1, Tv0+Tv1+w((v0,v1))
+
+            #check if we needed to start in a certain vertex and in which component that lies in.
+            assert len(ends) in [0,1,2] # Since the only options are for a component to have a mandatory start, end, both or none
+            if len(ends)==0: #meaning no restrictions on where to start or end
+                #
+                # Tc0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c0
+                # Tc1 = reduceGraphBridges(edgesC1, elevatorVertices, specialPaths, nodeToCoordinate) # longest trail in c1
+                #
+                # Tv0= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v0]) # longest trail in c0 that starts or ends in v0
+                # Tv1= reduceGraphBridges(edgesC0, elevatorVertices, specialPaths, nodeToCoordinate, ends=[v1]) # longest trail in c1 that starts or ends in v1
+                #
+                print(f"as we had")
+
+        elif True:
+            trailcomp= findTrailComponent(logfolder=logfolder, resultfolder=resultfolder, edges=edges, specialEdges=specialEdges,
+                               figuresResultBuildings=figuresResultBuildings, nodeToCoordinate=nodeToCoordinate,elevatorEdges=elevatorEdges,neighbours=neighbours, maxtime=maxtime,
+                               maxgap=maxgap, printtime=printtime, logfile=logfile, elevatorVertices=elevatorVertices,
+                               prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname, showboundplot=showboundplot,
+                               saveboundplotname=saveboundplotname)
+            return trailcomp
+
+        else: # we connect the dummy vertex to all the points in the graph with no walking bridges, and find the longest trail
+            #For now it is left in an unattained part, since I have to use the function of the other file to do this.
+            vdum= max(list(neighbourhood.keys()))+1
+            neighbourhood[vdum] = set(range(vdum))
+            print(f"WE SET VDUM={vdum} AND ADDED THE KEY TO NEIGHBOURHOOD")
+            for i in range(vdum):
+                weigthededges[(vdum, i)]=0
+                neighbourhood[i].add(vdum)
+
+            model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=600, printtime=15,
+                                                   logfile="\\log0801try2.log", ends=ends)
+            lengthLongestTrail=model.getAttr('ObjVal')
+            print(f"The longest trail is {lengthLongestTrail} meters long")
+            used_edges= getEdgesResult(model, varshall)
+            print(f"we have {vdum} as dummy vertex")
+            print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+            pprint(f"The {len(used_edges)} used edges in the solution are:\n{used_edges}")
+            trailresult= constructTrail(used_edges, vdum)
+            return trailresult
+            # print(f"trail result gives {len(trailresult)} edges in order:{trailresult}")
+            # drawEdgesInFloorplans(trailresult)
+            # results = glt.parse(PATH+"\\log0801try1.log")
+            # nodelogs = results.progress("nodelog")
+            # pd.set_option("display.max_columns", None)
+            # print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
+            # print(nodelogs.head(10))
+            # fig = go.Figure()
+            # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
+            # fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
+            # fig.update_xaxes(title_text="Runtime in seconds")
+            # fig.update_yaxes(title_text="Objective value function (in meters)")
+            # fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
+            # fig.show()
+
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    datenew = date.replace(':', '-')
+    logfile = "\\log" + datenew + ".log"
+
+    titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
+    boundplotname = f'{datenew}.svg'
+    reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, neighbours=neighbours,
+                           maxtime=1200, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
+                           prefixdrawcomp='testingmorebuildings', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+
+
+
