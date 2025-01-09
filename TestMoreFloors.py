@@ -402,7 +402,7 @@ def constructTrail(edges,vdum):
                 break
     return trail
 
-def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,folderresult, prefixfilename):
+def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,resultfolder, prefixfilename):
     rainbowColors= getRainbowColors(len(edges))
     startedge= edges[0]
     endedge= edges[-1]
@@ -511,7 +511,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
-        buildingResultPath= folderresult+f"\\{building}"
+        buildingResultPath= resultfolder+f"\\{building}"
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
