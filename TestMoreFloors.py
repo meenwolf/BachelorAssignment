@@ -25,6 +25,20 @@ from datetime import datetime
 #Connect special paths, elevators first:
 #CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
 
+def getNeighbourhood(edges): #THis function is not used in this file, but will be in another file.
+    neighbourhood = dict()
+    for v1, v2 in edges:
+        if v1 in neighbourhood:
+            neighbourhood[v1].add(v2)
+        else:
+            neighbourhood[v1]={v2}
+        if v2 in neighbourhood:
+            neighbourhood[v2].add(v1)
+        else:
+            neighbourhood[v2]={v1}
+    return neighbourhood
+
+
 def findSingleEnd(specialedge,neighbourhood, specialPaths): #uses the global variables specialPaths
     Nstart = len(neighbourhood[specialPaths[specialedge]["Start"]["Vnum"]])
     Nend = len(neighbourhood[specialPaths[specialedge]["End"]["Vnum"]])
