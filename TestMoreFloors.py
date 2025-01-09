@@ -3,6 +3,7 @@ from os.path import split
 
 from bokeh.colors.named import saddlebrown
 from networkx.classes import neighbors
+from scipy.cluster.hierarchy import weighted
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
@@ -18,119 +19,13 @@ from copy import deepcopy
 import pandas as pd
 import gurobi_logtools as glt
 import plotly.graph_objects as go
+from datetime import datetime
 
-
-# Get the path to the drawings
-dir_path = os.path.dirname(os.path.realpath(__file__))
-PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
-PATH_test= PATH+"\\Eerste aantekeningen\\MoreFloors"
-PATH_drawings= PATH_test +"\\OriginalPaths"
-PATH_empty= PATH_test+"\\Empty Floors"
-PATH_result= PATH_test+"\\ResultPaths"
-
-# Initiate some data structures to save information in
-nodeToCoordinate={}
-coordinateToNode={}
-
-nextnode=0
-
-specialPaths={}
-specialEdges={}
-hallways={}
-
-figuresResultBuildings  = dict()
-
-# Loop over the files to save a file where we can draw the resulting longest paths in
-for building in os.listdir(PATH_drawings):
-    buildingEmpty= PATH_empty+f"\\{building}"
-    listOfFiles = os.listdir(buildingEmpty)
-    for file in listOfFiles:
-        if file.endswith(".svg"):
-            floor= file.split('.')[1]
-            newFigurePath = buildingEmpty + f"\\{file}"
-
-            tree = ET.parse(newFigurePath)
-            root = tree.getroot()
-
-            # Set the width and height to prevent the result file to be of A4 size or in any case not showing the final result in microsoft edge(in inkscape it still showed the correct file)
-            root.attrib["width"] = "100%"
-            root.attrib["height"] = "100%"
-            ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
-
-            if building in figuresResultBuildings:
-                figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
-            else:
-                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
-
-            #Now start extracting the path information
-            paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
-
-            for path, attr in zip(paths, attributes):
-                if "inkscape:label" in attr.keys():
-                    if "1mtr" in attr['inkscape:label']:
-                        print(f"the scale label is: {attr['inkscape:label']}")
-                        lengthForOneMeter = abs(path.start - path.end)
-                        break
-
-            for path, attr in zip(paths, attributes):
-                for i, line in enumerate(path):
-                    start = np.round(line.start, 3)
-                    end = np.round(line.end, 3)
-                    edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
-                    specialPath = False
-                    if "inkscape:label" in attr.keys():
-                        if 'mtr' in attr['inkscape:label']:
-                            continue
-                        else:
-                            specialPath = True
-
-                    if not (start, building, floor) in coordinateToNode:
-                        coordinateToNode[(start, building, floor)] = nextnode
-                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': start}
-                        snode = nextnode
-                        nextnode += 1
-                    else:
-                        snode = coordinateToNode[(start, building, floor)]
-
-                    if not (end, building, floor) in coordinateToNode:
-                        coordinateToNode[(end, building, floor)] = nextnode
-                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': end}
-                        enode = nextnode
-                        nextnode += 1
-                    else:
-                        enode = coordinateToNode[(end, building, floor)]
-
-                    if specialPath:
-                        specialPaths[attr['inkscape:label']] = {'Start': {'Vnum': snode, "Location": start},
-                                                                         "End": {"Vnum": enode, "Location": end},
-                                                                         'Building': building, 'Floor': floor}
-
-                        specialEdges[(snode, enode)]=attr['inkscape:label']
-                        specialEdges[(enode, snode)]=attr['inkscape:label']
-                    hallways[(snode, enode)] = edgeweight
-
-
-
-print(figuresResultBuildings)
-print(f"the special paths are:")
-pprint(specialPaths)
-print("The hallways are:")
-pprint(hallways)
-
-# Define a dictionary where each vertex maps to a set of its neighbours
-neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
-
-for v1,v2 in hallways.keys():
-    neighboursold[v1].add(v2)
-    neighboursold[v2].add(v1)
-
-neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
-# Connections regarding staircases, elevators and connections between buildings
 
 #Connect special paths, elevators first:
 #CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
 
-def findSingleEnd(specialedge,neighbourhood): #uses the global variables specialPaths
+def findSingleEnd(specialedge,neighbourhood, specialPaths): #uses the global variables specialPaths
     Nstart = len(neighbourhood[specialPaths[specialedge]["Start"]["Vnum"]])
     Nend = len(neighbourhood[specialPaths[specialedge]["End"]["Vnum"]])
     if Nstart < Nend:
@@ -139,62 +34,6 @@ def findSingleEnd(specialedge,neighbourhood): #uses the global variables special
         end = specialPaths[specialedge]["End"]["Vnum"]
     return end
 
-elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
-elevatorEdges=set()
-connected=[]
-for pathname, pathinfo in specialPaths.items():
-    if pathname[2]=="E": #We have an edge to an elevator
-        startname = pathname[:5]
-        if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
-            print(startname)
-            elevatorConnects=[key for key in specialPaths.keys() if startname in key]
-            velevator= nextnode
-            elevatorVertices[startname]=velevator
-            nextnode+=1
-            neighbours[velevator]=set()
-            for edge in elevatorConnects:
-                end= findSingleEnd(edge, neighboursold)
-                hallways[(end, velevator)]=1
-                elevatorEdges.add((end, velevator))
-                elevatorEdges.add((velevator,end))
-                neighbours[end].add(velevator)
-                neighbours[velevator].add(end)
-            connected.append(startname)
-    elif pathname[2] == "S": #We have an edge to a staircase
-        if pathname not in connected: # if we have not connected these two floors with this staircase
-            end1= findSingleEnd(pathname, neighboursold)
-            otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
-            if otherSide in specialPaths:
-                print(f"original stair:{pathname}, other side:{otherSide}")
-                end2=findSingleEnd(otherSide, neighboursold)
-                hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
-                neighbours[end1].add(end2)
-                neighbours[end2].add(end1)
-                connected.append(pathname)
-                connected.append(otherSide)
-    elif pathname[1] in ["1","2","3"]: #connecting buildings? naming conv?
-        # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
-        print(f"connection building from CR:{pathname}")
-    elif pathname[2] == "C":
-        otherSide = pathname[4:6]+pathname[2:4]+pathname[0:2]
-        print(f"This hallway {pathname} ends at a walking bridge and the other side is: {otherSide}")
-    elif pathname[2]=='X':
-        print(f"we have an exit to outdoors: {pathname}")
-    else:
-        print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
-
-# Add hallways to the dummy vertex:
-vdum= nextnode
-nextnode += 1
-
-neighbours[vdum]= set(range(vdum))
-
-for i in range(nextnode):
-    hallways[(vdum, i)]=0
-    neighbours[i].add(vdum)
-
-
-print(f"Neighbours old is new? {neighboursold==neighbours}")
 
 def getReachable(neighborhoods, start, reachable=None):
     if reachable==None:
@@ -205,13 +44,24 @@ def getReachable(neighborhoods, start, reachable=None):
             reachable= getReachable(neighborhoods,neighbor, reachable)
     return reachable
 
+# Add hallways to the dummy vertex:
+def addDummy(neighbours, weigthededges):
+    vdum= max(list(neighbours.keys()))+1
+    neighbours[vdum] = set(range(vdum))
+
+    for i in range(vdum):
+        weigthededges[(vdum, i)] = 0
+        neighbours[i].add(vdum)
+    return neighbours, weigthededges
+
 def vdum_reachable(edges, vdum):
     # Create a mapping from each node to its neighbours in the feasible solution
     node_neighbors = defaultdict(list)
     for i, j in edges:
+        # print(f"i:{i}, j:{j}")
         node_neighbors[i].append(j)
         node_neighbors[j].append(i)
-
+    # print(f"neihgbours in vdumreachable:\n{node_neighbors}")
     assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())#assert even degree of the vertices in the solution
     assert vdum in node_neighbors #assert vdum being a vertex visited in the solution
 
@@ -224,9 +74,11 @@ class TSPCallback:
     callbacks, solutions are checked for disconnected subtours and then add subtour elimination
     constraints if needed/ the solution contains disconneced subtours."""
 
-    def __init__(self, nodes, x):
+    def __init__(self, nodes, x, neighbours, weightedhalls):
         self.nodes = nodes
         self.x = x
+        self.neighbs=neighbours
+        self.halls=weightedhalls
 
     def __call__(self, model, where):
         """Callback entry point: call lazy constraints routine when new
@@ -246,19 +98,23 @@ class TSPCallback:
         Assumes we are at MIPSOL."""
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
+
         reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
 
-        edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
-        edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
-        edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
+        edgesS = [(v, n) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum]
+        edgesNotS = [(v, n) for v in notReachableVdum for n in self.neighbs[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in self.neighbs[v] if n in notReachableVdum]
+        edgeCutS= [edge for edge in self.halls.keys() if (edge not in edgesNotS) and (edge not in edgesS)]
 
         for g in edgesNotS:
             model.cbLazy(
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
-def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None):
+def runModel(halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
+    if nvdum== None:
+        nvdum=max(list(neighbours.keys()))
 
+    print(f"IN MODELRUN VDUM:{nvdum}")
     m = Model()
     if maxtime != None:
         m.Params.TimeLimit = maxtime
@@ -266,7 +122,17 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=No
         m.Params.MIPGap= maxgap
     if printtime!=None:
         m.Params.DisplayInterval= printtime
-    if logfile != None:
+    if log:
+        if type(log)== str:
+            print(f"date: {log} will be the logfile")
+            if ".log" in log:
+                logfile=log
+            else:
+                logfile=f"\\{log}.log"
+        else:
+            date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            datenew = date.replace(':', '-')
+            logfile = "\\log" + datenew + ".log"
         m.Params.LogFile= PATH_test+logfile
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
@@ -275,16 +141,16 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=No
     varssol.update({(j, i): varssol[i, j] for i, j in varssol.keys()})
 
     # Add auxiliary variable to help ensure even degree
-    varsaux = m.addVars(range(nvdum), vtype=GRB.INTEGER, name="y")
+    varsaux = m.addVars(range(nvdum+1), vtype=GRB.INTEGER, name="y")
 
     # Set the objective function for the model
     m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
 
     # Add the even degree constraint for dummyvetex nvdum=2:
-    m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
-
+    # m.addConstr(sum([varssol[(nvdum, e)] for e in neighbours[nvdum]]) == 2, name='evenDegreeVDUM')
+    m.addConstr(varsaux[nvdum]==1, name='evenDegreeVDUM')
     # Add the even degree constraint for the other vertices
-    for i in range(nvdum):
+    for i in range(nvdum+1):
         m.addConstr(sum([varssol[(i, e)] for e in neighbours[i]]) == 2 * varsaux[i],
                         name=f'evenDegreeVertex{i}')
 
@@ -294,7 +160,7 @@ def runModel(halls, nvdum, maxtime=None, maxgap=None, printtime=None, logfile=No
 
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(vdum+1), varssol)
+    cb = TSPCallback(range(nvdum+1), varssol, neighbours,halls)
 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
@@ -313,11 +179,11 @@ def getEdgesResult(model, varssol):
     return edges
 
 #Define a function returning the building and floor a vertex vnum lies in
-def getBuildingFloor(vnum):
+def getBuildingFloor(vnum, nodeToCoordinate):
    return nodeToCoordinate[vnum]['Building'], nodeToCoordinate[vnum]['Floor']
 
 #Translate a vertex pair representing an edge, back to coordinates:
-def getCoordinatesPair(vtuple):
+def getCoordinatesPair(vtuple, nodeToCoordinate):
     return nodeToCoordinate[vtuple[0]]["Location"], nodeToCoordinate[vtuple[1]]["Location"]
 
 #Get the building name and number from the building name containing both of them with a space in between.
@@ -450,123 +316,6 @@ def getRainbowColors(NwantedColors):
 def rgb_to_string(rgb_tuple):
     return f"rgb({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]})"
 
-def drawEdgesInFloorplans(edges):
-    rainbowColors= getRainbowColors(len(edges))
-    startedge= edges[0]
-    endedge= edges[-1]
-
-    for i,edge in enumerate(edges):
-        if edge in elevatorEdges:
-            # We can not draw this line in a floor plan
-            continue
-        building0, floor0= getBuildingFloor(edge[0])
-        building1, floor1= getBuildingFloor(edge[1])
-
-        #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
-        if building0==building1:
-            #Check if we are on the same floor, if not, we take a staircase or elevator.
-            if floor0==floor1:
-                #Now we can draw the lines in the floor plan.
-                if startedge == edge:
-                    #To indicate an endpoint of the trail
-                    color="saddlebrown"
-                elif endedge == edge:
-                    #To indicate an endpoint of the trail
-                    color="saddlebrown"
-
-                elif edge in specialEdges:
-                    # Otherwise, we color this edge according to the fading rainbow
-                    color = rgb_to_string(rainbowColors[i])
-                    if specialEdges[edge][2]=="E":
-                        # We found elevator connection for which we might need to print a number
-                        if edges[i+1] in elevatorEdges:
-                            # We step into the elevator so we need to print a number
-                            toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
-                            drawCoord = nodeToCoordinate[edge[1]]['Location']
-
-                            if building0 == "CARRE 1412":
-                                if floor0 == '4':# since this floor had a weird shift in it
-                                    drawCoord = drawCoord + 126.822 + 494.891j
-
-                            # Add the number
-                            text_element = ET.Element("text", attrib={
-                                "x": str(drawCoord.real),
-                                "y": str(drawCoord.imag),
-                                "font-size": "24",  # Font size in pixels
-                                "fill": "saddlebrown",  # Text color
-                                "stroke": "saddlebrown"
-                            })
-                            text_element.text = str(toFloor)
-                            thisRoot = figuresResultBuildings[building0][floor0]['root']
-                            thisRoot.append(text_element)
-
-                else:
-                    # Normal edges are also colored according to the fading rainbow.
-                    color=rgb_to_string(rainbowColors[i])
-                # Get the coordinates to draw a line connecting them in the correct floor plan
-                startco, endco = getCoordinatesPair(edge)
-                if building0 =="CARRE 1412":
-                    if floor0 == '4': # since this floor had a weird shift in it
-                        startco=startco +126.822+ 494.891j
-                        endco=endco +126.822+ 494.891j
-
-                new_path_element = ET.Element("path", attrib={
-                    "d": Path(Line(start=startco, end=endco)).d(),
-                    "stroke": color,
-                    "fill": "none",
-                    "stroke-width": "2"
-                })
-                thisRoot= figuresResultBuildings[building0][floor0]['root']
-                thisRoot.append(new_path_element)
-
-
-            else: # We have a staircase edge, so we include the number of the floor we go to in the floor plan
-                # Print the number of the floor we draw to on the coordinate of the point we start in
-                toFloor = nodeToCoordinate[edge[1]]['Floor']
-                drawCoord = nodeToCoordinate[edge[0]]['Location']
-                if building0 =="CARRE 1412":
-                    if floor0 == '4': # since this floor had a weird shift in it
-                        drawCoord=drawCoord +126.822+ 494.891j
-
-                text_element = ET.Element("text", attrib={
-                    "x": str(drawCoord.real),
-                    "y": str(drawCoord.imag),
-                    "font-size": "24",  # Font size in pixels
-                    "fill": "saddlebrown",  # Text color
-                    "stroke": "saddlebrown"
-                })
-                text_element.text = str(toFloor)
-                thisRoot = figuresResultBuildings[building0][floor0]['root']
-                thisRoot.append(text_element)
-        else:
-            # We go from building0 to building1
-            toBuild = nodeToCoordinate[edge[1]]['Building']
-            drawCoord = nodeToCoordinate[edge[0]]['Location']
-            if building0 == "CARRE 1412":
-                if floor0 == '4': # since this floor had a weird shift in it
-                    drawCoord = drawCoord + 126.822 + 494.891j
-
-            text_element = ET.Element("text", attrib={
-                "x": str(drawCoord.real),
-                "y": str(drawCoord.imag),
-                "font-size": "24",  # Font size in pixels
-                "fill": "saddlebrown",  # Text color
-                "stroke": "saddlebrown"
-            })
-            text_element.text = toBuild
-            thisRoot = figuresResultBuildings[building0][floor0]['root']
-            thisRoot.append(text_element)
-
-    # Draw the figures in a new file:
-    for building, buildinginfo in figuresResultBuildings.items():
-        buildingResultPath= PATH_result+f"\\{building}"
-        for floor, floorinfo in buildinginfo.items():
-            buildingName, buildingNumber = splitNameNumber(building)
-            floortree= floorinfo['tree']
-            print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
-            testfilename= f"\\testingMoreFloors3{buildingNumber}.{floor}.svg"
-            floortree.write(buildingResultPath+testfilename)
-
 
 def constructTrail(edges,vdum):
     print(f"{len(edges)} edges:{edges}")
@@ -639,25 +388,330 @@ def constructTrail(edges,vdum):
                 break
     return trail
 
+def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename):
+    rainbowColors= getRainbowColors(len(edges))
+    startedge= edges[0]
+    endedge= edges[-1]
 
-model, varshall, varsdegree = runModel(hallways, vdum, maxtime=600, printtime= 5, logfile= "\\log1812try1.log")
+    for i,edge in enumerate(edges):
+        if edge in elevatorEdges:
+            # We can not draw this line in a floor plan
+            continue
+        building0, floor0= getBuildingFloor(edge[0], nodeToCoordinate)
+        building1, floor1= getBuildingFloor(edge[1], nodeToCoordinate)
+
+        #Now check if the buildings are the same, if not, we use a walking bridge/connection hallway
+        if building0==building1:
+            #Check if we are on the same floor, if not, we take a staircase or elevator.
+            if floor0==floor1:
+                #Now we can draw the lines in the floor plan.
+                if startedge == edge:
+                    #To indicate an endpoint of the trail
+                    color="saddlebrown"
+                elif endedge == edge:
+                    #To indicate an endpoint of the trail
+                    color="saddlebrown"
+
+                elif edge in specialEdges:
+                    # Otherwise, we color this edge according to the fading rainbow
+                    color = rgb_to_string(rainbowColors[i])
+                    if specialEdges[edge][2]=="E":
+                        # We found elevator connection for which we might need to print a number
+                        if edges[i+1] in elevatorEdges:
+                            # We step into the elevator so we need to print a number
+                            toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
+                            drawCoord = nodeToCoordinate[edge[1]]['Location']
+
+                            if building0 == "CARRE 1412":
+                                if floor0 == '4':# since this floor had a weird shift in it
+                                    drawCoord = drawCoord + 126.822 + 494.891j
+
+                            # Add the number
+                            text_element = ET.Element("text", attrib={
+                                "x": str(drawCoord.real),
+                                "y": str(drawCoord.imag),
+                                "font-size": "24",  # Font size in pixels
+                                "fill": "saddlebrown",  # Text color
+                                "stroke": "saddlebrown"
+                            })
+                            text_element.text = str(toFloor)
+                            thisRoot = figuresResultBuildings[building0][floor0]['root']
+                            thisRoot.append(text_element)
+
+                else:
+                    # Normal edges are also colored according to the fading rainbow.
+                    color=rgb_to_string(rainbowColors[i])
+                # Get the coordinates to draw a line connecting them in the correct floor plan
+                startco, endco = getCoordinatesPair(edge, nodeToCoordinate)
+                if building0 =="CARRE 1412":
+                    if floor0 == '4': # since this floor had a weird shift in it
+                        startco=startco +126.822+ 494.891j
+                        endco=endco +126.822+ 494.891j
+
+                new_path_element = ET.Element("path", attrib={
+                    "d": Path(Line(start=startco, end=endco)).d(),
+                    "stroke": color,
+                    "fill": "none",
+                    "stroke-width": "2"
+                })
+                thisRoot= figuresResultBuildings[building0][floor0]['root']
+                thisRoot.append(new_path_element)
+
+
+            else: # We have a staircase edge, so we include the number of the floor we go to in the floor plan
+                # Print the number of the floor we draw to on the coordinate of the point we start in
+                toFloor = nodeToCoordinate[edge[1]]['Floor']
+                drawCoord = nodeToCoordinate[edge[0]]['Location']
+                if building0 =="CARRE 1412":
+                    if floor0 == '4': # since this floor had a weird shift in it
+                        drawCoord=drawCoord +126.822+ 494.891j
+
+                text_element = ET.Element("text", attrib={
+                    "x": str(drawCoord.real),
+                    "y": str(drawCoord.imag),
+                    "font-size": "24",  # Font size in pixels
+                    "fill": "saddlebrown",  # Text color
+                    "stroke": "saddlebrown"
+                })
+                text_element.text = str(toFloor)
+                thisRoot = figuresResultBuildings[building0][floor0]['root']
+                thisRoot.append(text_element)
+        else:
+            # We go from building0 to building1
+            toBuild = nodeToCoordinate[edge[1]]['Building']
+            drawCoord = nodeToCoordinate[edge[0]]['Location']
+            if building0 == "CARRE 1412":
+                if floor0 == '4': # since this floor had a weird shift in it
+                    drawCoord = drawCoord + 126.822 + 494.891j
+
+            text_element = ET.Element("text", attrib={
+                "x": str(drawCoord.real),
+                "y": str(drawCoord.imag),
+                "font-size": "24",  # Font size in pixels
+                "fill": "saddlebrown",  # Text color
+                "stroke": "saddlebrown"
+            })
+            text_element.text = toBuild
+            thisRoot = figuresResultBuildings[building0][floor0]['root']
+            thisRoot.append(text_element)
+
+    # Draw the figures in a new file:
+    for building, buildinginfo in figuresResultBuildings.items():
+        buildingResultPath= PATH_result+f"\\{building}"
+        for floor, floorinfo in buildinginfo.items():
+            buildingName, buildingNumber = splitNameNumber(building)
+            floortree= floorinfo['tree']
+            print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
+            testfilename= f"\\{prefixfilename}{buildingNumber}.{floor}.svg"
+            floortree.write(buildingResultPath+testfilename)
+
+
+
+# Get the path to the drawings
+dir_path = os.path.dirname(os.path.realpath(__file__))
+PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
+PATH_test= PATH+"\\Eerste aantekeningen\\MoreFloors"
+PATH_drawings= PATH_test +"\\OriginalPaths"
+PATH_empty= PATH_test+"\\Empty Floors"
+PATH_result= PATH_test+"\\ResultPaths"
+
+# Initiate some data structures to save information in
+nodeToCoordinate={}
+coordinateToNode={}
+
+nextnode=0
+
+specialPaths={}
+specialEdges={}
+hallways={}
+
+figuresResultBuildings  = dict()
+
+# Loop over the files to save a file where we can draw the resulting longest paths in
+for building in os.listdir(PATH_drawings):
+    buildingEmpty= PATH_empty+f"\\{building}"
+    listOfFiles = os.listdir(buildingEmpty)
+    for file in listOfFiles:
+        if file.endswith(".svg"):
+            floor= file.split('.')[1]
+            newFigurePath = buildingEmpty + f"\\{file}"
+
+            tree = ET.parse(newFigurePath)
+            root = tree.getroot()
+
+            # Set the width and height to prevent the result file to be of A4 size or in any case not showing the final result in microsoft edge(in inkscape it still showed the correct file)
+            root.attrib["width"] = "100%"
+            root.attrib["height"] = "100%"
+            ET.register_namespace("", "http://www.w3.org/2000/svg")  # Register SVG namespace
+
+            if building in figuresResultBuildings:
+                figuresResultBuildings[building][floor]={'tree':tree, 'root':root}
+            else:
+                figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
+
+            #Now start extracting the path information
+            paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
+
+            for path, attr in zip(paths, attributes):
+                if "inkscape:label" in attr.keys():
+                    if "1mtr" in attr['inkscape:label']:
+                        print(f"the scale label is: {attr['inkscape:label']}")
+                        lengthForOneMeter = abs(path.start - path.end)
+                        break
+
+            for path, attr in zip(paths, attributes):
+                for i, line in enumerate(path):
+                    start = np.round(line.start, 3)
+                    end = np.round(line.end, 3)
+                    edgeweight = abs(start - end) / lengthForOneMeter  # edgeweight in meters
+                    specialPath = False
+                    if "inkscape:label" in attr.keys():
+                        if 'mtr' in attr['inkscape:label']:
+                            continue
+                        else:
+                            specialPath = True
+
+                    if not (start, building, floor) in coordinateToNode:
+                        coordinateToNode[(start, building, floor)] = nextnode
+                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': start}
+                        snode = nextnode
+                        nextnode += 1
+                    else:
+                        snode = coordinateToNode[(start, building, floor)]
+
+                    if not (end, building, floor) in coordinateToNode:
+                        coordinateToNode[(end, building, floor)] = nextnode
+                        nodeToCoordinate[nextnode] = {'Building': building, 'Floor': floor, 'Location': end}
+                        enode = nextnode
+                        nextnode += 1
+                    else:
+                        enode = coordinateToNode[(end, building, floor)]
+
+                    if specialPath:
+                        specialPaths[attr['inkscape:label']] = {'Start': {'Vnum': snode, "Location": start},
+                                                                         "End": {"Vnum": enode, "Location": end},
+                                                                         'Building': building, 'Floor': floor}
+
+                        specialEdges[(snode, enode)]=attr['inkscape:label']
+                        specialEdges[(enode, snode)]=attr['inkscape:label']
+                    hallways[(snode, enode)] = edgeweight
+
+
+
+print(figuresResultBuildings)
+print(f"the special paths are:")
+pprint(specialPaths)
+print("The hallways are:")
+pprint(hallways)
+
+# Define a dictionary where each vertex maps to a set of its neighbours
+neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
+
+for v1,v2 in hallways.keys():
+    neighboursold[v1].add(v2)
+    neighboursold[v2].add(v1)
+
+neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
+# Connections regarding staircases, elevators and connections between buildings
+
+elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
+elevatorEdges=set()
+connected=[]
+for pathname, pathinfo in specialPaths.items():
+    if pathname[2]=="E": #We have an edge to an elevator
+        startname = pathname[:5]
+        if not startname in connected: #If we have not yet connected the floors that can be reached from this elevator, do so
+            print(startname)
+            elevatorConnects=[key for key in specialPaths.keys() if startname in key]
+            velevator= nextnode
+            elevatorVertices[startname]=velevator
+            nextnode+=1
+            neighbours[velevator]=set()
+            for edge in elevatorConnects:
+                end= findSingleEnd(edge, neighboursold, specialPaths)
+                hallways[(end, velevator)]=1
+                elevatorEdges.add((end, velevator))
+                elevatorEdges.add((velevator,end))
+                neighbours[end].add(velevator)
+                neighbours[velevator].add(end)
+            connected.append(startname)
+    elif pathname[2] == "S": #We have an edge to a staircase
+        if pathname not in connected: # if we have not connected these two floors with this staircase
+            end1= findSingleEnd(pathname, neighboursold,specialPaths)
+            otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
+            if otherSide in specialPaths:
+                print(f"original stair:{pathname}, other side:{otherSide}")
+                end2=findSingleEnd(otherSide, neighboursold,specialPaths)
+                hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
+                neighbours[end1].add(end2)
+                neighbours[end2].add(end1)
+                connected.append(pathname)
+                connected.append(otherSide)
+    elif pathname[1] in ["1","2","3"]: #connecting buildings? naming conv?
+        # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
+        print(f"connection building from CR:{pathname}")
+    elif pathname[2] == "C":
+        otherSide = pathname[4:6]+pathname[2:4]+pathname[0:2]
+        print(f"This hallway {pathname} ends at a walking bridge and the other side is: {otherSide}")
+    elif pathname[2]=='X':
+        print(f"we have an exit to outdoors: {pathname}")
+    else:
+        print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
+
+
+neighboursnew, hallwaysnew = addDummy(neighbours, hallways)
+#
+# vdum= nextnode
+# nextnode += 1
+#
+# neighbours[vdum]= set(range(vdum))
+#
+# for i in range(nextnode):
+#     hallways[(vdum, i)]=0
+#     neighbours[i].add(vdum)
+
+
+print(f"Neighbours old is new? {neighboursold==neighbours}")
+print(f"two ways of adding the dummy neighbourhoood the same:{neighboursnew==neighbours}\n and for the hallways? {hallways==hallwaysnew}")
+date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+datenew = date.replace(':', '-')
+logfile = "\\log" + datenew + ".log"
+
+model, varshall, varsdegree = runModel(hallwaysnew, neighboursnew, maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
+
 lengthLongestTrail=model.getAttr('ObjVal')
 print(f"The longest trail is {lengthLongestTrail} meters long")
 used_edges= getEdgesResult(model, varshall)
-print(f"we have {vdum} as dummy vertex")
-print(f"edges used that connected here: {[edge for edge in used_edges if vdum in edge]}")
+vdummy=max(list(neighbours.keys()))
+print(f"we have {vdummy} as dummy vertex")
+print(f"edges used that are connected to the dummy vertex: {[edge for edge in used_edges if vdummy in edge]}")
 pprint(f"The used edges in the solution are:\n{used_edges}")
-trailresult= constructTrail(used_edges, vdum)
-drawEdgesInFloorplans(trailresult)
-results = glt.parse(PATH_test+"\\log1812try1.log")
-nodelogs = results.progress("nodelog")
-pd.set_option("display.max_columns", None)
-print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
-print(nodelogs.head(10))
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
-fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
-fig.update_xaxes(title_text="Runtime in seconds")
-fig.update_yaxes(title_text="Objective value function (in meters)")
-fig.update_layout(title_text="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver")
-fig.show()
+trailresult= constructTrail(used_edges, vdummy)
+drawEdgesInFloorplans(trailresult, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename='reorderedMoreFloors')
+
+def plotBounds(folder, logfile, title, showresult=True, savename=False):
+    logpath = folder + logfile
+
+    results = glt.parse(logpath)
+    nodelogs = results.progress("nodelog")
+    pd.set_option("display.max_columns", None)
+    # print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
+    # print(nodelogs.head(10))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers',name="Primal Bound"))
+    fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers',name="Dual Bound"))
+    fig.update_xaxes(title_text="Runtime in seconds")
+    fig.update_yaxes(title_text="Objective value function (in meters)")
+    fig.update_layout(title_text=title)
+    if savename:
+        PATHplot= folder+f"\\boundsOverTime"
+        if not os.path.exists(PATHplot):
+            os.mkdir(PATHplot)
+        fig.write_image(PATHplot+"\\"+savename)
+
+    if showresult:
+        fig.show()
+
+titleplot="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
+logfolder= PATH_test
+plotBounds(logfolder, logfile, titleplot, showresult=True, savename=f'{datenew}.svg')
