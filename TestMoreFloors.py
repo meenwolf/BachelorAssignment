@@ -515,7 +515,6 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
-            print(f"the type of floor tree is: {type(floortree)}\n {floortree}")
             testfilename= f"\\{prefixfilename}{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 

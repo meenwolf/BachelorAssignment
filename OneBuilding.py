@@ -1,5 +1,30 @@
-from MoreBuildings import getNeighbourhood
 from TestMoreFloors import *
+
+def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, neighbours=None,
+                       maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
+                       prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
+    if neighbours == None:
+        neighbours = getNeighbourhood(edges)
+    neighboursnew, edgesnew, vdummy = addDummy(neighbours, edges)
+    model, varshall, varsdegree = runModel(logfolder=logfolder, halls=edgesnew, nvdum=vdummy, neighbours=neighboursnew,
+                                           maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
+                                           elevatorVertices=elevatorVertices)
+
+    lengthLongestTrail = model.getAttr('ObjVal')
+    print(f"The longest trail is {lengthLongestTrail} meters long")
+    used_edges = getEdgesResult(model, varshall)
+    # vdummy = max(list(neighbours.keys()))
+    print(f"we have {vdummy} as dummy vertex for this component")
+    trailresult = constructTrail(used_edges, vdummy)
+    if type(prefixdrawcomp) == str:
+        drawEdgesInFloorplans(edges=trailresult, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
+                              specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
+                              resultfolder=resultfolder, prefixfilename=prefixdrawcomp)
+    if type(plotboundsname) == str:
+        plotBounds(logfolder=logfolder, logfile=logfile, title=plotboundsname, showresult=showboundplot,
+                   savename=saveboundplotname)
+
+    return trailresult
 
 if __name__ == "__main__":
 
@@ -10,6 +35,8 @@ if __name__ == "__main__":
     PATH_drawings= PATH_test +"\\OriginalPaths"
     PATH_empty= PATH_test+"\\Empty Floors"
     PATH_result= PATH_test+"\\ResultPaths"
+    PATH_log=PATH_test+"\\Logs"
+
 
     # Initiate some data structures to save information in
     nodeToCoordinate={}
@@ -154,49 +181,11 @@ if __name__ == "__main__":
         else:
             print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
-    def findTrailComponent(folder, edges, neighbours=None, logfile=False, elevatorVertices=[], prefixdrawcomp=False, plotbounds=False):
-        if neighbours == None:
-            neighbours = getNeighbourhood(edges)
-        neighboursnew, edgesnew= addDummy(neighbours, edges)
-        model, varshall, varsdegree = runModel(folder, edgesnew, neighboursnew, maxtime=600, printtime=5,
-                                               log=logfile, elevatorVertices=elevatorVertices)
-        lengthLongestTrail = model.getAttr('ObjVal')
-        print(f"The longest trail is {lengthLongestTrail} meters long")
-        used_edges= getEdgesResult(model, varshall)
-        vdummy = max(list(neighbours.keys()))
-        print(f"we have {vdummy} as dummy vertex for this component")
-        trailresult = constructTrail(used_edges, vdummy)
-        if type(prefixdrawcomp) == str:
-            drawEdgesInFloorplans(trailresult, nodeToCoordinate, elevatorEdges, specialEdges, figuresResultBuildings,
-                                  folder, prefixfilename=prefixdrawcomp)
-        if type(plotbounds)==str:
-            plotBounds(folder, logfile, plotbounds, showresult=True, savename=f'{datenew}.svg')
 
-        return trailresult
-
-    #
-    # neighboursnew, hallwaysnew = addDummy(neighbours, hallways)
-
-    print(f"Neighbours old is new? {neighboursold==neighbours}")
-    print(f"two ways of adding the dummy neighbourhoood the same:{neighboursnew==neighbours}\n and for the hallways? {hallways==hallwaysnew}")
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    # model, varshall, varsdegree = runModel(PATH_test,hallwaysnew, neighboursnew, maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
-
-    # lengthLongestTrail=model.getAttr('ObjVal')
-    # print(f"The longest trail is {lengthLongestTrail} meters long")
-    # used_edges= getEdgesResult(model, varshall)
-    # vdummy=max(list(neighbours.keys()))
-    # print(f"we have {vdummy} as dummy vertex")
-    # print(f"edges used that are connected to the dummy vertex: {[edge for edge in used_edges if vdummy in edge]}")
-    # pprint(f"The used edges in the solution are:\n{used_edges}")
-    # trailresult= constructTrail(used_edges, vdummy)
-    # drawEdgesInFloorplans(trailresult, nodeToCoordinate, elevatorEdges, specialEdges, figuresResultBuildings,
-    #                       PATH_result, prefixfilename='reorderedMoreFloors')
-
-    # titleplot="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
-    # logfolder= PATH_test
-    # plotBounds(logfolder, logfile, titleplot, showresult=True, savename=f'{datenew}.svg')
     titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
+    boundplotname= f'{datenew}.svg'
+    findTrailComponent(logfolder=PATH_log, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, neighbours=neighbours, maxtime=60, maxgap=None, printtime=5,logfile=logfile, elevatorVertices=elevatorVertices, prefixdrawcomp='testing1building', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
