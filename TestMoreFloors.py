@@ -124,7 +124,7 @@ class TSPCallback:
                 quicksum([self.x[edge] for edge in edgeCutS])
                 >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
-def runModel(folder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
+def runModel(logfolder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
     if nvdum== None:
         nvdum=max(list(neighbours.keys()))
 
@@ -147,7 +147,7 @@ def runModel(folder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None, pr
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             datenew = date.replace(':', '-')
             logfile = "\\log" + datenew + ".log"
-        m.Params.LogFile= folder+logfile
+        m.Params.LogFile= logfolder+logfile
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
 
@@ -519,8 +519,8 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
             testfilename= f"\\{prefixfilename}{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
-def plotBounds(folder, logfile, title, showresult=False, savename=False):
-    logpath = folder + logfile
+def plotBounds(logfolder, logfile, title, showresult=False, savename=False):
+    logpath = logfolder + logfile
 
     results = glt.parse(logpath)
     nodelogs = results.progress("nodelog")
@@ -534,7 +534,7 @@ def plotBounds(folder, logfile, title, showresult=False, savename=False):
     fig.update_yaxes(title_text="Objective value function (in meters)")
     fig.update_layout(title_text=title)
     if savename:
-        PATHplot = folder + f"\\boundsOverTime"
+        PATHplot = logfolder + f"\\boundsOverTime"
         if not os.path.exists(PATHplot):
             os.mkdir(PATHplot)
         fig.write_image(PATHplot + "\\" + savename)
@@ -550,6 +550,7 @@ if __name__ == "__main__":
     PATH_drawings= PATH_test +"\\OriginalPaths"
     PATH_empty= PATH_test+"\\Empty Floors"
     PATH_result= PATH_test+"\\ResultPaths"
+    PATH_log=PATH_test+"\\Logs"
 
     # Initiate some data structures to save information in
     nodeToCoordinate={}
@@ -713,7 +714,7 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    model, varshall, varsdegree = runModel(PATH_test, hallwaysnew, neighboursnew, nvdum=vdummy,maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
+    model, varshall, varsdegree = runModel(PATH_log, hallwaysnew, neighboursnew, nvdum=vdummy,maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
 
     lengthLongestTrail=model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")
@@ -726,5 +727,4 @@ if __name__ == "__main__":
     drawEdgesInFloorplans(trailresult, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename='reorderedMoreFloors')
 
     titleplot="The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
-    logfolder= PATH_test
-    plotBounds(logfolder, logfile, titleplot, showresult=True, savename=f'{datenew}.svg')
+    plotBounds(PATH_log, logfile, titleplot, showresult=True, savename=f'{datenew}.svg')
