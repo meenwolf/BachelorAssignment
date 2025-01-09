@@ -1,14 +1,20 @@
 from TestMoreFloors import *
 
 def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, nodeToCoordinate, elevatorEdges,neighbours=None,
-                       maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
+                       ends=[],maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
                        prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
     if neighbours == None:
         neighbours = getNeighbourhood(edges)
     neighboursnew, edgesnew, vdummy = addDummy(neighbours, edges)
-    model, varshall, varsdegree = runModel(logfolder=logfolder, halls=edgesnew, nvdum=vdummy, neighbours=neighboursnew,
-                                           maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
-                                           elevatorVertices=elevatorVertices)
+    if len(ends) in [0,1,2]:
+        model, varshall, varsdegree = runModel2(ends=ends,logfolder=logfolder, halls=edgesnew, nvdum=vdummy,
+                                               neighbours=neighboursnew,
+                                               maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
+                                               elevatorVertices=elevatorVertices)
+    else:
+        model, varshall, varsdegree = runModel(logfolder=logfolder, halls=edgesnew, nvdum=vdummy, neighbours=neighboursnew,
+                                               maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
+                                               elevatorVertices=elevatorVertices)
 
     lengthLongestTrail = model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")
