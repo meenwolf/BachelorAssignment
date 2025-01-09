@@ -52,7 +52,7 @@ def addDummy(neighbours, weigthededges):
     for i in range(vdum):
         weigthededges[(vdum, i)] = 0
         neighbours[i].add(vdum)
-    return neighbours, weigthededges
+    return neighbours, weigthededges, vdum
 
 def vdum_reachable(edges, vdum):
     # Create a mapping from each node to its neighbours in the feasible solution
@@ -505,7 +505,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
             testfilename= f"\\{prefixfilename}{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
-def plotBounds(folder, logfile, title, showresult=True, savename=False):
+def plotBounds(folder, logfile, title, showresult=False, savename=False):
     logpath = folder + logfile
 
     results = glt.parse(logpath)
@@ -681,7 +681,7 @@ if __name__ == "__main__":
             print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
 
-    neighboursnew, hallwaysnew = addDummy(neighbours, hallways)
+    neighboursnew, hallwaysnew, vdummy = addDummy(neighbours, hallways)
     #
     # vdum= nextnode
     # nextnode += 1
@@ -699,12 +699,12 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    model, varshall, varsdegree = runModel(PATH_test, hallwaysnew, neighboursnew, maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
+    model, varshall, varsdegree = runModel(PATH_test, hallwaysnew, neighboursnew, nvdum=vdummy,maxtime=600, printtime= 5, log= logfile, elevatorVertices=elevatorVertices)
 
     lengthLongestTrail=model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")
     used_edges= getEdgesResult(model, varshall)
-    vdummy=max(list(neighbours.keys()))
+    # vdummy=max(list(neighbours.keys()))
     print(f"we have {vdummy} as dummy vertex")
     print(f"edges used that are connected to the dummy vertex: {[edge for edge in used_edges if vdummy in edge]}")
     pprint(f"The used edges in the solution are:\n{used_edges}")
