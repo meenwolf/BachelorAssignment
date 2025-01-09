@@ -1,41 +1,7 @@
-import os
-from os.path import split
-
-from bokeh.colors.named import saddlebrown
-from networkx.classes import neighbors, path_weight, edges
-from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
-from pprint import pprint
-from gurobipy import *
-import xml.etree.ElementTree as ET
-import numpy as np
-import logging
-from collections import defaultdict
-from itertools import combinations
-import re
-import math
-from copy import deepcopy
-
-import pandas as pd
-import gurobi_logtools as glt
-import plotly.graph_objects as go
-
-from TestMoreBuildings import otherBridgeName
+import sys
+from OneBuilding import *
 
 
-# from TrialExtractSVG import getBuildingFloor
-def getBuildingFloor(nodeToCoordinate, vnum):
-   return nodeToCoordinate[vnum]['Building'], nodeToCoordinate[vnum]['Floor']
-
-
-# from TrialExtractSVG import getReachable
-def getReachable(neighborhoods, start, reachable=None):
-    if reachable==None:
-        reachable={start}
-    for neighbor in neighborhoods[start]:
-        if not neighbor in reachable:
-            reachable.add(neighbor)
-            reachable= getReachable(neighborhoods,neighbor, reachable)
-    return reachable
 # Get the path to the drawings
 dir_path = os.path.dirname(os.path.realpath(__file__))
 PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
@@ -43,6 +9,9 @@ PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
 PATH_drawings= PATH +"\\TestMoreBuildings\\OriginalPaths"
 PATH_empty= PATH+"\\TestMoreBuildings\\EmptyFloorplans"
 PATH_result= PATH+"\\TestMoreBuildings\\ResultFloorplans"
+PATH_logs= PATH+"\\TestMoreBuildings\\Logs"
+if not os.path.exists(PATH_logs):
+    os.mkdir(PATH_logs)
 
 # Initiate some data structures to save information in
 nodeToCoordinate={}
@@ -65,6 +34,12 @@ bridgeLengths={"C01CRWA": 10, "C01WACR": 10, "C01CRNL": 10, "C01NLCR": 10, "C01C
 # edgesRAfive=[]
 for building in os.listdir(PATH_drawings):
     if 'WAAIER' in building:
+        continue
+    if 'CITADEL' in building:
+        continue
+    if 'RAVELIJN' in building:
+        continue
+    if 'ZILVERLING' in building:
         continue
     buildingEmpty= PATH_empty+f"\\{building}"
     listOfFiles = os.listdir(buildingEmpty)
@@ -136,49 +111,24 @@ for building in os.listdir(PATH_drawings):
                     hallways[(snode, enode)] = edgeweight
 
 print(figuresResultBuildings)
-print(f"the special paths are:")
+print(f"the special paths of size {sys.getsizeof(specialPaths)} bytes are:")
 pprint(specialPaths)
-print(f"special edges are: {specialEdges}")
-print("The hallways are:")
+print(f"special edges of size {sys.getsizeof(specialEdges)} bytes are \n {specialEdges}:")
+print("The hallways of size {sys.getsizeof(hallways)} bytes are:")
 pprint(hallways)
 print(f"next node is dummy vertex number: {nextnode}")
 # Define a dictionary where each vertex maps to a set of its neighbours
 
-def getNeighbourhood(edges):
-    neighbourhood = dict()
-    for v1, v2 in edges:
-        if v1 in neighbourhood:
-            neighbourhood[v1].add(v2)
-        else:
-            neighbourhood[v1]={v2}
-        if v2 in neighbourhood:
-            neighbourhood[v2].add(v1)
-        else:
-            neighbourhood[v2]={v1}
-    return neighbourhood
-
-
 neighboursold = getNeighbourhood(hallways.keys())
-# neighboursold= {i:set() for i in range(nextnode)} #to store the neighbours that we draw in the floor plans
-#
-# for v1,v2 in hallways.keys():
-#     neighboursold[v1].add(v2)
-#     neighboursold[v2].add(v1)
+print(f" neighboursold is of size: {sys.getsizeof(neighboursold)} bytes")
+
 
 neighbours=deepcopy(neighboursold) # deep copy the neighbourhood, to which we can add the
 # Connections regarding staircases, elevators and connections between buildings
+print(f" neighbours is of size: {sys.getsizeof(neighbours)} bytes")
 
 #Connect special paths, elevators first:
 #CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
-
-def findSingleEnd(specialedge,neighbourhood): #uses the global variables specialPaths
-    Nstart = len(neighbourhood[specialPaths[specialedge]["Start"]["Vnum"]])
-    Nend = len(neighbourhood[specialPaths[specialedge]["End"]["Vnum"]])
-    if Nstart < Nend:
-        end = specialPaths[specialedge]["Start"]["Vnum"]
-    else:
-        end = specialPaths[specialedge]["End"]["Vnum"]
-    return end
 
 elevatorVertices=dict() # Keep a dictionary storing the vertices for elevators, which need to have degree <=2
 elevatorEdges=set()
@@ -195,7 +145,7 @@ for pathname, pathinfo in specialPaths.items():
             nextnode+=1
             neighbours[velevator]=set()
             for edge in elevatorConnects:
-                end= findSingleEnd(edge, neighboursold)
+                end= findSingleEnd(edge, neighboursold, specialPaths)
                 hallways[(end, velevator)]=1
                 elevatorEdges.add((end, velevator))
                 elevatorEdges.add((velevator,end))
@@ -204,11 +154,11 @@ for pathname, pathinfo in specialPaths.items():
             connected.append(startname)
     elif pathname[2] == "S": #We have an edge to a staircase
         if pathname not in connected: # if we have not connected these two floors with this staircase
-            end1= findSingleEnd(pathname, neighboursold)
+            end1= findSingleEnd(pathname, neighboursold, specialPaths)
             otherSide= pathname[:5]+pathname[7:]+pathname[5:7]
             if otherSide in specialPaths:
                 # print(f"original stair:{pathname}, other side:{otherSide}")
-                end2=findSingleEnd(otherSide, neighboursold)
+                end2=findSingleEnd(otherSide, neighboursold, specialPaths)
                 hallways[(end1, end2)] = 7 # 1 stair 7 meter? idkkk
                 neighbours[end1].add(end2)
                 neighbours[end2].add(end1)
@@ -233,8 +183,8 @@ for pathname, pathinfo in specialPaths.items():
             if bridgeName not in connected:
                 if otherSide in specialPaths:
                     print(f"????THE???? walking bridge is connected to edge {pathname} in the same building. I overdid the naming and will connect this hallway to the otherSide")
-                    end1= findSingleEnd(bridgeName, neighboursold)
-                    end2=findSingleEnd(otherSide, neighboursold)
+                    end1= findSingleEnd(bridgeName, neighboursold, specialPaths)
+                    end2=findSingleEnd(otherSide, neighboursold, specialPaths)
                     hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
                     neighbours[end1].add(end2)
                     neighbours[end2].add(end1)
@@ -249,12 +199,11 @@ for pathname, pathinfo in specialPaths.items():
             print(f"We did not connect this endpoint yet")
             #Check if the bridge is drawn into the other buildings floorplan
             if otherBridgeName in specialPaths.keys():
-                # if 'and' not in specialPaths[otherBridgeName]['Building']:  # check that we did not add this bridge in the code but in inkscape
 
                 print(f"The bridge is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
                 #We find the end of edge pathname and of edge otherBridgeName and connect them with an edge of weight zero
-                end1= findSingleEnd(pathname, neighboursold)
-                end2= findSingleEnd(otherBridgeName, neighboursold)
+                end1= findSingleEnd(pathname, neighboursold, specialPaths)
+                end2= findSingleEnd(otherBridgeName, neighboursold, specialPaths)
                 hallways[(end1, end2)] = 0  # Connect the endpoint of a bridge to the corresponding entry of the other building
                 neighbours[end1].add(end2)
                 neighbours[end2].add(end1)
@@ -267,9 +216,9 @@ for pathname, pathinfo in specialPaths.items():
             else:
                 print(f"We did draw the paths in the other building of the bridge between {pathname} and {otherSide}. Have to measure this bridge by hand and connects the two ends of bridge with an edge of this length.")
                 lenbridge= bridgeLengths[bridgeName]
-                end1 = findSingleEnd(pathname, neighboursold)
+                end1 = findSingleEnd(pathname, neighboursold, specialPaths)
                 print(f"end1: {end1}: {nodeToCoordinate[end1]}")
-                end2 = findSingleEnd(otherSide, neighboursold)
+                end2 = findSingleEnd(otherSide, neighboursold, specialPaths)
                 print(f"end2: {end2}: {nodeToCoordinate[end2]}")
 
                 hallways[(end1, end2)] = lenbridge  # Connect the endpoint of a bridge to the corresponding entry of the other building
@@ -290,64 +239,27 @@ for pathname, pathinfo in specialPaths.items():
         print(f"somehting went wrong: {pathname} not a stair, elevator, connection or exit")
 
 specialPaths.update(addedBridges)
+print(f"the updated special paths is of size {sys.getsizeof(specialPaths)} bytes")
+print(f"the updated neighbours is of size {sys.getsizeof(neighbours)} bytes")
+print(f"the updated hallways is of size {sys.getsizeof(hallways)} bytes")
 
+print(f"the elevatorVertices is of size {sys.getsizeof(elevatorVertices)} bytes")
+print(f"the elevatorEdges is of size {sys.getsizeof(elevatorEdges)} bytes")
+print(f"the connected is of size {sys.getsizeof(connected)} bytes")
+print(f"the addedBridges is of size {sys.getsizeof(addedBridges)} bytes")
 
-def vdum_reachable(edges, vdum):
-    # Create a mapping from each node to its neighbours in the feasible solution
-    # node_neighbors = defaultdict(list)
-    node_neighbors= getNeighbourhood(edges)
-    # for i, j in edges:
-    #     node_neighbors[i].append(j)
-    #     node_neighbors[j].append(i)
-
-    assert all(len(neighbors) %2 ==0 for neighbors in node_neighbors.values())#assert even degree of the vertices in the solution
-    assert vdum in node_neighbors #assert vdum being a vertex visited in the solution
-
-    reachableFromVdum= getReachable(node_neighbors, vdum)
-    notReachable= [key for key in node_neighbors.keys() if key not in reachableFromVdum]
-    return reachableFromVdum, notReachable
-
-class TSPCallback:
-    """Callback class implementing lazy constraints for the TSP.  At MIPSOL
-    callbacks, solutions are checked for disconnected subtours and then add subtour elimination
-    constraints if needed/ the solution contains disconneced subtours."""
-
-    def __init__(self, nodes, x):
-        self.nodes = nodes
-        self.x = x
-
-    def __call__(self, model, where):
-        """Callback entry point: call lazy constraints routine when new
-        solutions are found. Stop the optimization if there is an exception in
-        user code."""
-        if where == GRB.Callback.MIPSOL:
-            try:
-                self.eliminate_subtours(model)
-            except Exception:
-                logging.exception("Exception occurred in MIPSOL callback")
-                model.terminate()
-
-    def eliminate_subtours(self, model):
-        """Extract the current solution, find the vertices reachable starting from vdum in the solution
-        and define the edge cut of these vertices in the original graph. then formulate lazy
-        constraints to cut off the current solution if disconnected vertices are found.
-        Assumes we are at MIPSOL."""
-        values = model.cbGetSolution(self.x)
-        edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
-        reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
-        neighbours= getNeighbourhood(edges)
-        edgesS = [(v, n) for v in reachableVdum for n in neighbours[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in neighbours[v] if n in reachableVdum]
-        edgesNotS = [(v, n) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in neighbours[v] if n in notReachableVdum]
-        edgeCutS= [edge for edge in hallways if (edge not in edgesNotS) and (edge not in edgesS)]
-
-        for g in edgesNotS:
-            model.cbLazy(
-                quicksum([self.x[edge] for edge in edgeCutS])
-                >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
 
 def runModel(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
     print(f"keys of neighbourhood:{neighbourhood.keys()}")
     m = Model()
+    # m.Params.Aggregate=2
+    # m.Params.Cuts=3
+    # m.Params.Method=1
+    # m.Params.MIPFocus=3
+    # m.Params.BranchDir=1
+    # m.Params.VarBranch=3
+    # m.Params.ImproveStartTime= 10
+    print(f"we run with improvestarttime of 10 seconds!")
     if maxtime != None:
         m.Params.TimeLimit = maxtime
     if maxgap!=None:
@@ -380,15 +292,6 @@ def runModel(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=N
     for name, vertex in elevatorVertices.items():
         m.addConstr(varsaux[vertex]<= 1, name=f'visit{name}AtMostOnce')
 
-    # For the case where we simplified the graph with onecuts, we can have a mandatory start or end point
-    # So add those constraints underneath.
-
-    assert len(ends) in [0,1,2] # Since we can only have a mandatory start, end, both or none,
-
-    if len(ends)>0: #meaning that we have a mandatory start or endpoint or both for our trail
-        for end in ends:
-            m.addConstr(varssol[(nvdum, end)]==1,  name=f'muststartorendin{end}') #so we must end(or start) in these vertices since that is the only vertex connected to vdum, and we
-        # we have our even degree, with degree of vdum=2, and connected graph. Those make sure we end in end.
 
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
@@ -398,155 +301,19 @@ def runModel(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=N
     m.optimize(cb)
     return m, varssol, varsaux
 
+# Constraint to maybe add to runModel??
+# For the case where we simplified the graph with onecuts, we can have a mandatory start or end point
+#     So add those constraints underneath.
+    #
+    # assert len(ends) in [0,1,2] # Since we can only have a mandatory start, end, both or none,
+    #
+    # if len(ends)>0: #meaning that we have a mandatory start or endpoint or both for our trail
+    #     for end in ends:
+    #         m.addConstr(varssol[(nvdum, end)]==1,  name=f'muststartorendin{end}') #so we must end(or start) in these vertices since that is the only vertex connected to vdum, and we
+    #     # we have our even degree, with degree of vdum=2, and connected graph. Those make sure we end in end.
 
-#Retreive final values for the varshall: hallway variables and print them
-def getEdgesResult(model, varssol):
-    #Only get the edges that have a value x_e >0.5, namely about 1.
-    sol = model.getAttr('X', varssol)
-    edges = set()
-    for key, value in sol.items():
-        if value >= 0.5:
-            if key[0] < key[1]:
-                edges.add(key)
-    return edges
-
-# #Define a function returning the building and floor a vertex vnum lies in
-
-#Translate a vertex pair representing an edge, back to coordinates:
-def getCoordinatesPair(vtuple):
-    return nodeToCoordinate[vtuple[0]]["Location"], nodeToCoordinate[vtuple[1]]["Location"]
-
-#Get the building name and number from the building name containing both of them with a space in between.
-def splitNameNumber(buildingNo):
-    res = buildingNo.split()
-    # print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
-    return res[0], res[1]
-
-
-def getRainbowColors(NwantedColors):
-    startred= 150 #to take bordeaux/dark red into account
-    maxgreen=220 #to prevent light yellow
-    minblue= 100 #for magenta
-    maxblue= 200 #for light pink
-
-    colors=[]
-    red=startred
-    green=0
-    blue=0
-
-    while red < 255:
-        colors.append((red,green,blue))
-        red+=1
-
-    while green < maxgreen:
-        colors.append((red,green,blue))
-        green+=1
-
-    while red>0:
-        colors.append((red,green,blue))
-        red-=1
-
-    while green< 255:
-        colors.append((red,green,blue))
-        green+=1
-
-    while blue<255:
-        colors.append((red,green,blue))
-        blue+=1
-
-    while green >0:
-        colors.append((red,green,blue))
-        green -= 1
-
-
-    while red < 255:
-        colors.append((red,green,blue))
-        red +=1
-
-    while blue > 100:
-        colors.append((red,green,blue))
-        blue -=1
-
-    while blue <= maxblue:
-        colors.append((red,round(green),blue))
-        blue +=1
-        green += 1.64
-
-    Red= 255- startred # possible reds, increase red value by 1 for each color
-    Orange = maxgreen  # to go from red to orange, increase green value by 1 this many times
-    Yellow= 255 # yellow tones, remove red by 1 for each color
-    Green=  255-maxgreen # green tones, add 1 green for each color
-    Lightblue= 255 # to light green/blue, add 1 blue for each color
-    Blue= 255 # to blue, remove 1 green for each color
-    Purple= 255 # to purple, add 1 red for each color
-    Magenta= 255-minblue #To magenta, remove 1 blue for each color
-    Lightpink= maxblue-minblue # to lighter pink, add 1 blue and 1.64 green for each color.
-    NpossibleColors= Red+Orange+Yellow+Green+Lightblue+Blue+Purple+Magenta+Lightpink
-
-    colors=[]
-
-    #Calculate how many of these colors need to be added to the colorgrid
-    nred= math.ceil(Red/NpossibleColors*NwantedColors)
-    norange= math.ceil(Orange/NpossibleColors*NwantedColors)
-    nyellow= math.ceil(Yellow/NpossibleColors*NwantedColors)
-    ngreen= math.ceil(Green/NpossibleColors*NwantedColors)
-    nlightblue=math.ceil(Lightblue/NpossibleColors*NwantedColors)
-    nblue= math.ceil(Blue/NpossibleColors*NwantedColors)
-    npurple= math.ceil(Purple/NpossibleColors*NwantedColors)
-    nmagenta= math.ceil(Magenta/NpossibleColors*NwantedColors)
-    nlightpink= math.ceil(Lightpink/NpossibleColors*NwantedColors)
-
-    #first add the red colors:
-    cval= np.linspace(startred, 255,nred)
-    for c in cval:
-        colors.append((round(c),0,0))
-
-    # Add the orange colors:
-    cval= np.linspace(0, maxgreen, norange)
-    for c in cval:
-        colors.append((255,round(c),0))
-
-    # Add the yellow colors
-    cval= np.linspace(0, 255, nyellow)
-    for c in cval:
-        colors.append((255-round(c), maxgreen, 0))
-
-    # Add the green colors
-    cval= np.linspace(maxgreen, 255, ngreen)
-    for c in cval:
-        colors.append((0,round(c),0))
-
-    # Add the lightblue colors
-    cval= np.linspace(0, 255, nlightblue)
-    for c in cval:
-        colors.append((0,255,round(c)))
-
-    # Add the blue colors
-    cval= np.linspace(0, 255, nblue)
-    for c in cval:
-        colors.append((0,255-round(c),255))
-
-    # Add the purple colors
-    cval = np.linspace(0, 255, npurple)
-    for c in cval:
-        colors.append((round(c),0,255))
-
-    # Add the magenta colors
-    cval= np.linspace(0, 255-minblue, nmagenta)
-    for c in cval:
-        colors.append((255, 0, 255-round(c)))
-
-    # Add the light pink colors
-    cval= np.linspace(0, maxblue-minblue, nlightpink)
-    for c in cval:
-        colors.append((255, round(c*1.64), minblue+round(c)))
-
-    return colors
-
-def rgb_to_string(rgb_tuple):
-    return f"rgb({rgb_tuple[0]}, {rgb_tuple[1]}, {rgb_tuple[2]})"
-
-def drawEdgesInFloorplans(edges):
+#Redefine draw edges in floorplans, and name it draw AllEdges to prevent confusion with the one drawing in only one component?
+def drawAllEdges(edges):
     rainbowColors= getRainbowColors(len(edges))
     startedge= edges[0]
     endedge= edges[-1]
@@ -664,94 +431,94 @@ def drawEdgesInFloorplans(edges):
             testfilename= f"\\testingMoreBuildings{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
-
-def constructTrail(edgeswithdum,vdum):
-    print(f"{len(edgeswithdum)} edges:{edgeswithdum}")
-    nedges= len(edgeswithdum)
-    trail=[]
-    # node_neighbors = defaultdict(list)
-    #Get the neighbourhoods of the induced graph by the edges, but not considering the dummy vertex and dummy edges
-    edges = [ edge for edge in edgeswithdum if vdum not in edge]
-    # for edge in edgeswithdum:
-    #     if vdum in edge:
-    #         edges.remove(edge)
-    node_neighbors = getNeighbourhood(edges)
-
-    #
-    #     else:
-    #         dummyEdges.append((i,j))
-    #         dummyEdges.append((j,i))
-    #
-    # # Remove the dummy edges from the used edges
-    # for edge in dummyEdges:
-    #     if edge in edges:
-    #         edges.remove(edge)
-
-    print(node_neighbors)
-
-    for node, neighbs in node_neighbors.items():
-        neighbs= list(neighbs)
-        if len(neighbs)==1:
-            # We found a start!
-            print(f"potential start: {node}")
-            currentNode=node
-
-    while len(trail)<nedges-2:
-        neighbs= list(node_neighbors[currentNode])
-        print(f"we are at: {currentNode} with neighbours {neighbs}\n")
-
-        if len(neighbs)==1: # We go to this neighbour
-            vertex= neighbs[0]
-            print(f'we only have one neighbour to visit so we go to {vertex}')
-            trail.append((currentNode,vertex))
-            if (vertex, currentNode) in edges:
-                edges.remove((vertex, currentNode))
-            elif (currentNode, vertex) in edges:
-                edges.remove((currentNode, vertex))
-            else:
-                print(f"this edge was not in the edgeset, but a neighbour?? ")
-            node_neighbors[currentNode].remove(vertex)
-            node_neighbors[vertex].remove(currentNode)
-            currentNode= vertex
-
-        elif len(neighbs)==0: # No more places to go, we used all the edges
-            print(f"No more places to go, we used all the edges and break")
-            break
-
-        else: # We have to loop over the vertices in the neighourhood and check if the edge to there is a bridge or not
-            for vertex in neighbs:
-                if (currentNode, vertex) in edges:
-                    edgeToConsider= (currentNode, vertex)
-                elif (vertex, currentNode) in edges:
-                    edgeToConsider= (vertex, currentNode)
-                else:
-                    print(f"ERROR: vertex {vertex} is a neighbour of current node {currentNode} but no edge is in the edge set")
-
-                #check if this edge is a bridge
-                isBridge= isCutEdge(node_neighbors, edgeToConsider, currentNode)
-                # nReachableBefore= getReachable(node_neighbors, currentNode)
-                # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
-                # node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
-                # node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
-                # nReachableAfter= getReachable(node_neighbors, currentNode)
-                # print(f"after deleting the edge to {vertex} there are {len(nReachableAfter)} nodes reachable: {nReachableAfter}")
-
-                if isBridge: # It is a bridge
-                    print(f"So this edge is a bridge, don't go to {vertex} now, but continue searching.")
-                    #edge edgeToConsider is a bridge so look for the next after adding the vertices back to nodeneighbours
-                else: # not a bridge so we take this edge
-                    node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
-                    node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
-                    print(f"edge  to {vertex} is not a bridge, so we can take this one")
-                    edges.remove(edgeToConsider)
-                    trail.append((currentNode, vertex))
-                    currentNode=vertex
-                    print(f"we went to vertex {currentNode} and break the forloop")
-                    break
-            if not currentNode == vertex:
-                print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
-                break
-    return trail
+#This version used the iscutedge, but since for only carre it finds a decent option pretty quick, lets stick with that for now.
+# def constructTrailCheckComponents(edgeswithdum,vdum):
+#     print(f"{len(edgeswithdum)} edges:{edgeswithdum}")
+#     nedges= len(edgeswithdum)
+#     trail=[]
+#     # node_neighbors = defaultdict(list)
+#     #Get the neighbourhoods of the induced graph by the edges, but not considering the dummy vertex and dummy edges
+#     edges = [ edge for edge in edgeswithdum if vdum not in edge]
+#     # for edge in edgeswithdum:
+#     #     if vdum in edge:
+#     #         edges.remove(edge)
+#     node_neighbors = getNeighbourhood(edges)
+#
+#     #
+#     #     else:
+#     #         dummyEdges.append((i,j))
+#     #         dummyEdges.append((j,i))
+#     #
+#     # # Remove the dummy edges from the used edges
+#     # for edge in dummyEdges:
+#     #     if edge in edges:
+#     #         edges.remove(edge)
+#
+#     print(node_neighbors)
+#
+#     for node, neighbs in node_neighbors.items():
+#         neighbs= list(neighbs)
+#         if len(neighbs)==1:
+#             # We found a start!
+#             print(f"potential start: {node}")
+#             currentNode=node
+#
+#     while len(trail)<nedges-2:
+#         neighbs= list(node_neighbors[currentNode])
+#         print(f"we are at: {currentNode} with neighbours {neighbs}\n")
+#
+#         if len(neighbs)==1: # We go to this neighbour
+#             vertex= neighbs[0]
+#             print(f'we only have one neighbour to visit so we go to {vertex}')
+#             trail.append((currentNode,vertex))
+#             if (vertex, currentNode) in edges:
+#                 edges.remove((vertex, currentNode))
+#             elif (currentNode, vertex) in edges:
+#                 edges.remove((currentNode, vertex))
+#             else:
+#                 print(f"this edge was not in the edgeset, but a neighbour?? ")
+#             node_neighbors[currentNode].remove(vertex)
+#             node_neighbors[vertex].remove(currentNode)
+#             currentNode= vertex
+#
+#         elif len(neighbs)==0: # No more places to go, we used all the edges
+#             print(f"No more places to go, we used all the edges and break")
+#             break
+#
+#         else: # We have to loop over the vertices in the neighourhood and check if the edge to there is a bridge or not
+#             for vertex in neighbs:
+#                 if (currentNode, vertex) in edges:
+#                     edgeToConsider= (currentNode, vertex)
+#                 elif (vertex, currentNode) in edges:
+#                     edgeToConsider= (vertex, currentNode)
+#                 else:
+#                     print(f"ERROR: vertex {vertex} is a neighbour of current node {currentNode} but no edge is in the edge set")
+#
+#                 #check if this edge is a bridge
+#                 isBridge= isCutEdge(node_neighbors, edgeToConsider, currentNode)
+#                 # nReachableBefore= getReachable(node_neighbors, currentNode)
+#                 # print(f"to start with, reachable from {currentNode} are {len(nReachableBefore)} nodes: {nReachableBefore}")
+#                 # node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+#                 # node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
+#                 # nReachableAfter= getReachable(node_neighbors, currentNode)
+#                 # print(f"after deleting the edge to {vertex} there are {len(nReachableAfter)} nodes reachable: {nReachableAfter}")
+#
+#                 if isBridge: # It is a bridge
+#                     print(f"So this edge is a bridge, don't go to {vertex} now, but continue searching.")
+#                     #edge edgeToConsider is a bridge so look for the next after adding the vertices back to nodeneighbours
+#                 else: # not a bridge so we take this edge
+#                     node_neighbors[edgeToConsider[0]].remove(edgeToConsider[1])
+#                     node_neighbors[edgeToConsider[1]].remove(edgeToConsider[0])
+#                     print(f"edge  to {vertex} is not a bridge, so we can take this one")
+#                     edges.remove(edgeToConsider)
+#                     trail.append((currentNode, vertex))
+#                     currentNode=vertex
+#                     print(f"we went to vertex {currentNode} and break the forloop")
+#                     break
+#             if not currentNode == vertex:
+#                 print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
+#                 break
+#     return trail
 
 def isCutEdge(node_neighbors, edgeToConsider,currentNode=None, getComponent=False):
     if currentNode== None:
@@ -804,7 +571,7 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     bridges = dict()
     potentialtwocuts = dict()
     for path, info in specialPaths.items():
-        if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL']:  # meaning that it is a bridge
+        if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL', 'C01ZICR']:  # meaning that it is a bridge
             print(f"specialPaths: {specialPaths}")
             print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
             print(f"start: {specialPaths[path]['Start']}")
@@ -832,7 +599,7 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     return onecuts, twocuts
 
 
-oneCuts, twoCuts = findCuts(hallways.keys(), specialPaths)
+oneCuts, twoCuts = findCuts(edges=hallways.keys(), specialPaths=specialPaths)
 
 print(f"the following bridges are onecuts: {oneCuts}")
 print(f"the following bridges are twocuts: {twoCuts}")
@@ -898,9 +665,12 @@ def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
     #
     return edgesComponent
 
-def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoordinate, ends=[]):
-    neighbourhood= getNeighbourhood(weigthededges.keys())
-    onecuts, twocuts = findCuts(weigthededges.keys(), specialPaths, neighbourhood)
+def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings,
+                       nodeToCoordinate, elevatorEdges=[], ends=[],neighbours=None,
+                       maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
+                       prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
+    neighbourhood= getNeighbourhood(edges.keys())
+    onecuts, twocuts = findCuts(edges=edges.keys(), specialPaths=specialPaths, neighbourhood=neighbourhood)
     onecuts=[]
     if len(onecuts) >0: #meaning that there are one cuts
         print(f"one cuts are: {onecuts}\n with keys: {onecuts.keys()}")
@@ -923,8 +693,8 @@ def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoord
 
         building0 = nodeToCoordinate[v0]['Building']
         building1 = nodeToCoordinate[v1]['Building']
-        edgesC0= getEdgesComponent(weigthededges, c0)
-        edgesC1= getEdgesComponent(weigthededges, c1)
+        edgesC0= getEdgesComponent(edges, c0)
+        edgesC1= getEdgesComponent(edges, c1)
 
         print(f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
         # Now find the longest trail in c0, called Tc0, in c1, called Tc1
@@ -944,7 +714,19 @@ def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoord
             #
             print(f"as we had")
 
+    elif True:
+        trailcomp= findTrailComponent(logfolder=logfolder, resultfolder=resultfolder, edges=edges, specialEdges=specialEdges,
+                           figuresResultBuildings=figuresResultBuildings, nodeToCoordinate=nodeToCoordinate,elevatorEdges=elevatorEdges,neighbours=neighbours, maxtime=maxtime,
+                           maxgap=maxgap, printtime=printtime, logfile=logfile, elevatorVertices=elevatorVertices,
+                           prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname, showboundplot=showboundplot,
+                           saveboundplotname=saveboundplotname)
+        return trailcomp
+        # findTrailComponent(logfolder=PATH_log, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, neighbours=neighbours,
+        #                    maxtime=10, maxgap=None, printtime=5, logfile=False, elevatorVertices=[],
+        #                    prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False)
+        #
     else: # we connect the dummy vertex to all the points in the graph with no walking bridges, and find the longest trail
+        #For now it is left in an unattained part, since I have to use the function of the other file to do this.
         vdum= max(list(neighbourhood.keys()))+1
         neighbourhood[vdum] = set(range(vdum))
         print(f"WE SET VDUM={vdum} AND ADDED THE KEY TO NEIGHBOURHOOD")
@@ -952,7 +734,7 @@ def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoord
             weigthededges[(vdum, i)]=0
             neighbourhood[i].add(vdum)
 
-        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=1800, printtime=15,
+        model, varshall, varsdegree = runModel(weigthededges,neighbourhood, elevatorVertices, vdum, maxtime=600, printtime=15,
                                                logfile="\\log0801try2.log", ends=ends)
         lengthLongestTrail=model.getAttr('ObjVal')
         print(f"The longest trail is {lengthLongestTrail} meters long")
@@ -978,9 +760,16 @@ def reduceGraphBridges(weigthededges, elevatorVertices,specialPaths, nodeToCoord
         # fig.show()
 
 
+date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+datenew = date.replace(':', '-')
+logfile = "\\log" + datenew + ".log"
 
-
-reduceGraphBridges(hallways, elevatorVertices, specialPaths, nodeToCoordinate)
+titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
+boundplotname = f'{datenew}.svg'
+reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+                   figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, neighbours=neighbours,
+                       maxtime=10, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
+                       prefixdrawcomp='testingmorebuildings', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
 # # Add hallways to the dummy vertex:
 # vdum= nextnode
 # nextnode += 1

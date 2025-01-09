@@ -1,6 +1,6 @@
 from TestMoreFloors import *
 
-def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, neighbours=None,
+def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, nodeToCoordinate, elevatorEdges,neighbours=None,
                        maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],
                        prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
     if neighbours == None:
@@ -188,4 +188,4 @@ if __name__ == "__main__":
 
     titleplot = "The bounds on the length of the longest trail on Carré floor 1,2,3 and 4 together,<br> at each moment in time when running the gurobi solver"
     boundplotname= f'{datenew}.svg'
-    findTrailComponent(logfolder=PATH_log, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, neighbours=neighbours, maxtime=60, maxgap=None, printtime=5,logfile=logfile, elevatorVertices=elevatorVertices, prefixdrawcomp='testing1building', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    findTrailComponent(logfolder=PATH_log, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,neighbours=neighbours, maxtime=60, maxgap=None, printtime=5,logfile=logfile, elevatorVertices=elevatorVertices, prefixdrawcomp='testing1building', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
