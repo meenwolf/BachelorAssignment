@@ -80,10 +80,20 @@ def runModelends(logfolder, halls, neighbours,ends=[],nvdum=None, maxtime=None, 
 
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(nvdum+1), varssol, neighbours,halls)
+    cb = TSPCallback(list(neighbours.keys()), varssol, neighbours,halls)
 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
+    all_vars = m.getVars()
+    values = m.getAttr("X", all_vars)
+    names = m.getAttr("VarName", all_vars)
+    nedges=0
+    for name, val in zip(names, values):
+        print(f"{name} = {val}")
+        if 'x' in name:
+            if val > 0.5:
+                nedges += 1
+    print(f"WE HAVE {nedges} IN THE RESULT OF THE MODEL")
     return m, varssol, varsaux
 
 def runModel3OGidea(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
@@ -172,9 +182,9 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
     used_edges = getEdgesResult(model, varshall)
     # vdummy = max(list(neighbours.keys()))
     print(f"we have {vdummy} as dummy vertex for this component")
-    print(f"and used edges:{used_edges},\n all edges:{edges}")
+    print(f"and the {len(used_edges)} used edges are:{used_edges}")
     trailresult = constructTrail(used_edges, vdummy)
-    print(f"trail result={trailresult}")
+    print(f"trail result contains {len(trailresult)} edges ={trailresult}")
     if type(prefixdrawcomp) == str:
         drawEdgesInFloorplans(edges=trailresult, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
                               specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
@@ -309,7 +319,7 @@ def drawAllEdges(edges):
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
-            testfilename= f"\\testingMoreBuildings{buildingNumber}.{floor}.svg"
+            testfilename= f"\\newdrawing{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
 #This version used the iscutedge, but since for only carre it finds a decent option pretty quick, lets stick with that for now.
@@ -552,8 +562,8 @@ if __name__ == "__main__":
             continue
         if 'RAVELIJN' in building:
             continue
-        # if 'ZILVERLING' in building:
-        #     continue
+        if 'ZILVERLING' in building:
+            continue
         buildingEmpty= PATH_empty+f"\\{building}"
         listOfFiles = os.listdir(buildingEmpty)
         for file in listOfFiles:
@@ -633,7 +643,7 @@ if __name__ == "__main__":
     print(f"special edges of size {sys.getsizeof(specialEdges)} bytes are \n {specialEdges}:")
     print("The hallways of size {sys.getsizeof(hallways)} bytes are:")
     pprint(hallways)
-    print(f"next node is dummy vertex number: {nextnode}")
+    print(f"we have this many vertices drawn intothe floor plans: {nextnode}")
     # Define a dictionary where each vertex maps to a set of its neighbours
 
     neighboursold = getNeighbourhood(hallways.keys())
@@ -1120,16 +1130,45 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    titleplot = "The bounds on the length of the longest trail on Carré andZI together,<br> at each moment in time when running the gurobi solver <br> overnight for 8 hours"
+    titleplot = "The bounds on the length of the longest trail on Carré andZI together,<br> at each moment in time when running the gurobi solver <br> #overnight for 8 hours"
     boundplotname = f'{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, neighbours=neighbours,
-                           maxtime=28800, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
+                           maxtime=15, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
                            prefixdrawcomp='RunCarreZI', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     print(f"nodeToCoordinate:{nodeToCoordinate}")
-    drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
+    buildingsvisited=dict()
+    weightcheck=0
+    for edge in trail:
+        if edge in hallways:
+            if hallways[edge]<0:
+                print(f"length of edge{edge} is{hallways[edge]}")
+            weightcheck+= hallways[edge]
+        else:
+            if hallways[(edge[1],edge[0])]<0:
+                print(f"length of edge{(edge[1],edge[0])} is{hallways[(edge[1],edge[0])]}")
+            weightcheck+= hallways[(edge[1],edge[0])]
+        if edge[0] in nodeToCoordinate:
+            building, floor= getBuildingFloor(edge[0], nodeToCoordinate)
+            if building in buildingsvisited:
+                buildingsvisited[building].add(floor)
+            else:
+                buildingsvisited[building]={floor}
+        else:
+            print(f"vertex {edge[0]} is not in node to coordinate")
+        if edge[1] in nodeToCoordinate:
+            building, floor= getBuildingFloor(edge[1], nodeToCoordinate)
+            if building in buildingsvisited:
+                buildingsvisited[building].add(floor)
+            else:
+                buildingsvisited[building]={floor}
+        else:
+            print(f"vertex {edge[1]} is not in node to coordinate")
+    print(f"trail with {len(trail)} of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
+    drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
+    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='originaldrawing')
     # todraw=[]
     # for edge in trail:
     #     if (edge[0], edge[1]) in hallways:

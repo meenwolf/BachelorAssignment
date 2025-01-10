@@ -203,7 +203,7 @@ def getCoordinatesPair(vtuple, nodeToCoordinate):
 #Get the building name and number from the building name containing both of them with a space in between.
 def splitNameNumber(buildingNo):
     res = buildingNo.split()
-    print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
+    # print(f"buildingnumber:{buildingNo}, res:{res}, elem 0: {res[0]}, elem 1:{res[1]}")
     return res[0], res[1]
 
 
@@ -332,16 +332,22 @@ def rgb_to_string(rgb_tuple):
 
 
 def constructTrail(edges,vdum):
-    print(f"{len(edges)} edges:{edges}")
     nedges= len(edges)
+    print(f"{len(edges)} edges to construct trail from:{edges}")
     trail=[]
     node_neighbors = defaultdict(list)
     #Get the neighbourhoods of the induced graph by the edges, but not considering the dummy vertex and dummy edges
     dummyEdges=[]
     for i, j in edges:
         if i != vdum and j != vdum:
-            node_neighbors[i].append(j)
-            node_neighbors[j].append(i)
+            if i in node_neighbors:
+                node_neighbors[i].append(j)
+            else:
+                node_neighbors[i]=[j]
+            if j in node_neighbors:
+                node_neighbors[j].append(i)
+            else:
+                node_neighbors[j]=[i]
         else:
             dummyEdges.append((i,j))
             dummyEdges.append((j,i))
@@ -350,7 +356,7 @@ def constructTrail(edges,vdum):
     for edge in dummyEdges:
         if edge in edges:
             edges.remove(edge)
-
+    print(f"after removing dummy edges we heve :{len(edges)} edges")
     for node, neighbs in node_neighbors.items():
         if len(neighbs)==1:
             # We found a start!
@@ -363,12 +369,16 @@ def constructTrail(edges,vdum):
         if len(neighbs)==1: # We go to this neighbour
             vertex= neighbs[0]
             trail.append((currentNode,vertex))
-
+            if (currentNode, vertex) in edges:
+                edges.remove((currentNode, vertex))
+            else:
+                edges.remove((vertex, currentNode))
             node_neighbors[currentNode].remove(vertex)
             node_neighbors[vertex].remove(currentNode)
             currentNode= vertex
 
         elif len(neighbs)==0: # No more places to go, we used all the edges
+            print(f"WE QUIT THE WIHILE LOOP SINCE NEIGHBS ARE:{neighbs} for len trail:{len(trail)} and nedges to sort{nedges}")
             break
 
         else: # We have to loop over the vertices in the neighourhood and check if the edge to there is a bridge or not
@@ -400,7 +410,7 @@ def constructTrail(edges,vdum):
             if not currentNode == vertex:
                 print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
                 break
-    print(f"WE CONSTRUCTED TRAIL: {trail}")
+    print(f"WE CONSTRUCTED TRAIL of {len(trail)} edges: {trail}")
     return trail
 
 def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,resultfolder, prefixfilename):
