@@ -61,9 +61,9 @@ def getReachable(neighborhoods, start, reachable=None):
 # Add hallways to the dummy vertex:
 def addDummy(neighbours, weigthededges):
     vdum= max(list(neighbours.keys()))+1
-    neighbours[vdum] = set(range(vdum))
+    neighbours[vdum] = {v for v in neighbours.keys()}
 
-    for i in range(vdum):
+    for i in neighbours.keys():
         weigthededges[(vdum, i)] = 0
         neighbours[i].add(vdum)
     return neighbours, weigthededges, vdum
@@ -400,6 +400,7 @@ def constructTrail(edges,vdum):
             if not currentNode == vertex:
                 print(f"ERROOOORRRRR ???? length trail: {len(trail)} we did not find a nonbridge edge? is that even possible?? for currentNode {currentNode}")
                 break
+    print(f"WE CONSTRUCTED TRAIL: {trail}")
     return trail
 
 def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,resultfolder, prefixfilename):
