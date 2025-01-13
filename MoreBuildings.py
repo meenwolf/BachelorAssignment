@@ -87,68 +87,68 @@ def runModelends(logfolder, halls, neighbours,ends=[],nvdum=None, maxtime=None, 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
     all_vars = m.getVars()
-    values = m.getAttr("X", all_vars)
-    names = m.getAttr("VarName", all_vars)
-    nedges=0
-    for name, val in zip(names, values):
-        print(f"{name} = {val}")
-        if 'x' in name:
-            if val > 0.5:
-                nedges += 1
-    print(f"WE HAVE {nedges} IN THE RESULT OF THE MODEL")
+    # values = m.getAttr("X", all_vars)
+    # names = m.getAttr("VarName", all_vars)
+    # nedges=0
+    # for name, val in zip(names, values):
+    #     print(f"{name} = {val}")
+    #     if 'x' in name:
+    #         if val > 0.5:
+    #             nedges += 1
+    # print(f"WE HAVE {nedges} IN THE RESULT OF THE MODEL")
     return m, varssol, varsaux
-
-def runModel3OGidea(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
-    print(f"keys of neighbourhood:{neighbourhood.keys()}")
-    m = Model()
-    # m.Params.Aggregate=2
-    # m.Params.Cuts=3
-    # m.Params.Method=1
-    # m.Params.MIPFocus=3
-    # m.Params.BranchDir=1
-    # m.Params.VarBranch=3
-    # m.Params.ImproveStartTime= 10
-    print(f"we run with improvestarttime of 10 seconds!")
-    if maxtime != None:
-        m.Params.TimeLimit = maxtime
-    if maxgap!=None:
-        m.Params.MIPGap= maxgap
-    if printtime!=None:
-        m.Params.DisplayInterval= printtime
-    if logfile != None:
-        m.Params.LogFile= PATH+logfile
-    # Variables: the hallway connecting crossing i and j in the tour?
-    varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
-
-    # Symmetric direction: use dict.update to alias variable with new key
-    varssol.update({(j, i): varssol[i, j] for i, j in varssol.keys()})
-
-    # Add auxiliary variable to help ensure even degree
-    varsaux = m.addVars(range(nvdum), vtype=GRB.INTEGER, name="y")
-
-    # Set the objective function for the model
-    m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
-
-    # Add the even degree constraint for dummyvetex nvdum=2:
-    m.addConstr(sum([varssol[(nvdum, e)] for e in neighbourhood[nvdum]]) == 2, name='evenDegreeVDUM')
-
-    # Add the even degree constraint for the other vertices
-    for i in range(nvdum):
-        m.addConstr(sum([varssol[(i, e)] for e in neighbourhood[i]]) == 2 * varsaux[i],
-                        name=f'evenDegreeVertex{i}')
-
-    # Add the constraint that forbids you to use an elevator multiple times:
-    for name, vertex in elevatorVertices.items():
-        m.addConstr(varsaux[vertex]<= 1, name=f'visit{name}AtMostOnce')
-
-
-    # Set up for the callbacks/ lazy constraints for connectivity
-    m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(nvdum+1), varssol)
-
-    # Call optimize with the callback structure to get a connected solution solution
-    m.optimize(cb)
-    return m, varssol, varsaux
+#
+# def runModel3OGidea(halls,neighbourhood, elevatorVertices,nvdum, maxtime=None, maxgap=None, printtime=None, logfile=None, ends=[]):
+#     print(f"keys of neighbourhood:{neighbourhood.keys()}")
+#     m = Model()
+#     # m.Params.Aggregate=2
+#     # m.Params.Cuts=3
+#     # m.Params.Method=1
+#     # m.Params.MIPFocus=3
+#     # m.Params.BranchDir=1
+#     # m.Params.VarBranch=3
+#     # m.Params.ImproveStartTime= 10
+#     print(f"we run with improvestarttime of 10 seconds!")
+#     if maxtime != None:
+#         m.Params.TimeLimit = maxtime
+#     if maxgap!=None:
+#         m.Params.MIPGap= maxgap
+#     if printtime!=None:
+#         m.Params.DisplayInterval= printtime
+#     if logfile != None:
+#         m.Params.LogFile= PATH+logfile
+#     # Variables: the hallway connecting crossing i and j in the tour?
+#     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
+#
+#     # Symmetric direction: use dict.update to alias variable with new key
+#     varssol.update({(j, i): varssol[i, j] for i, j in varssol.keys()})
+#
+#     # Add auxiliary variable to help ensure even degree
+#     varsaux = m.addVars(range(nvdum), vtype=GRB.INTEGER, name="y")
+#
+#     # Set the objective function for the model
+#     m.setObjective(sum([halls[e] * varssol[e] for e in halls.keys()]), sense=GRB.MAXIMIZE)
+#
+#     # Add the even degree constraint for dummyvetex nvdum=2:
+#     m.addConstr(sum([varssol[(nvdum, e)] for e in neighbourhood[nvdum]]) == 2, name='evenDegreeVDUM')
+#
+#     # Add the even degree constraint for the other vertices
+#     for i in range(nvdum):
+#         m.addConstr(sum([varssol[(i, e)] for e in neighbourhood[i]]) == 2 * varsaux[i],
+#                         name=f'evenDegreeVertex{i}')
+#
+#     # Add the constraint that forbids you to use an elevator multiple times:
+#     for name, vertex in elevatorVertices.items():
+#         m.addConstr(varsaux[vertex]<= 1, name=f'visit{name}AtMostOnce')
+#
+#
+#     # Set up for the callbacks/ lazy constraints for connectivity
+#     m.Params.LazyConstraints = 1
+#     cb = TSPCallback(range(nvdum+1), varssol)
+#
+#     # Call optimize with the callback structure to get a connected solution solution
+#     m.optimize(cb)
+#     return m, varssol, varsaux
 
 # Constraint to maybe add to runModel??
 # For the case where we simplified the graph with onecuts, we can have a mandatory start or end point
@@ -174,16 +174,22 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
                                                maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
                                                elevatorVertices=elevatorVertices)
         lengthLongestTrail = model.getAttr('ObjVal')
-        print(f"The longest trail is {lengthLongestTrail} meters long")
+        # print(f"The longest trail is {lengthLongestTrail} meters long")
         used_edges = getEdgesResult(model, varshall)
-        drawEdgesInFloorplans(edges=[edge for edge in used_edges if vdummy not in edge], nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
-                              specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
-                              resultfolder=PATH_result, prefixfilename='edgesResult')
+        # drawEdgesInFloorplans(edges=[edge for edge in used_edges if vdummy not in edge], nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
+        #                       specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
+        #                       resultfolder=PATH_result, prefixfilename='edgesResult')
         print(f"{len(getReachable(getNeighbourhood(used_edges),vdummy))} vertices of the {len(getNeighbourhood(used_edges))} vertices are reachable from vdum{vdummy}")
         # vdummy = max(list(neighbours.keys()))
         print(f"we have {vdummy} as dummy vertex for this component")
-        print(f"and the {len(used_edges)} used edges are:{used_edges}")
+        # print(f"and the {len(used_edges)} used edges are:{used_edges}")
         trailresult = constructTrailCheckComponents(used_edges, vdummy)
+        lengthtrail=0
+        for edge in trailresult:
+            if edge in edgesnew:
+                lengthtrail+=edgesnew[edge]
+            else:
+                lengthtrail+=edgesnew[(edge[1],edge[0])]
     else:
         print(f"run old model")
         model, varshall, varsdegree = runModel(logfolder=logfolder, halls=edgesnew, nvdum=vdummy, neighbours=neighboursnew,
@@ -191,22 +197,24 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
                                                elevatorVertices=elevatorVertices)
 
         lengthLongestTrail = model.getAttr('ObjVal')
-        print(f"The longest trail is {lengthLongestTrail} meters long")
+        # print(f"The longest trail is {lengthLongestTrail} meters long")
         used_edges = getEdgesResult(model, varshall)
         # vdummy = max(list(neighbours.keys()))
         print(f"we have {vdummy} as dummy vertex for this component")
-        print(f"and the {len(used_edges)} used edges are:{used_edges}")
+        # print(f"and the {len(used_edges)} used edges are:")
         trailresult = constructTrail(used_edges, vdummy)
-    print(f"trail result contains {len(trailresult)} edges ={trailresult}")
-    if type(prefixdrawcomp) == str:
-        drawEdgesInFloorplans(edges=trailresult, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
-                              specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
-                              resultfolder=resultfolder, prefixfilename=prefixdrawcomp)
-    if type(plotboundsname) == str:
-        plotBounds(logfolder=logfolder, logfile=logfile, title=plotboundsname, showresult=showboundplot,
-                   savename=saveboundplotname)
+        lengthtrail= sum([edgesnew[edge] for edge in trailresult])
 
-    return trailresult, lengthLongestTrail
+    print(f"trail result contains {len(trailresult)} edges and is {lengthtrail} meters long")
+    # if type(prefixdrawcomp) == str:
+    #     drawEdgesInFloorplans(edges=trailresult, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
+    #                           specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
+    #                           resultfolder=resultfolder, prefixfilename=prefixdrawcomp)
+    # if type(plotboundsname) == str:
+    #     plotBounds(logfolder=logfolder, logfile=logfile, title=plotboundsname, showresult=showboundplot,
+    #                savename=saveboundplotname)
+
+    return trailresult, lengthtrail
 
 #Redefine draw edges in floorplans, and name it draw AllEdges to prevent confusion with the one drawing in only one component?
 def drawAllEdges(edges):
@@ -337,7 +345,7 @@ def drawAllEdges(edges):
 
 #This version used the iscutedge, but since for only carre it finds a decent option pretty quick, lets stick with that for now.
 def constructTrailCheckComponents(edgeswithdum,vdum):
-    print(f"{len(edgeswithdum)} edges:{edgeswithdum}")
+    print(f"construct trail with {len(edgeswithdum)} edges")
     nedges= len(edgeswithdum)
     trail=[]
     # node_neighbors = defaultdict(list)
@@ -369,11 +377,11 @@ def constructTrailCheckComponents(edgeswithdum,vdum):
 
     while len(trail)<nedges-2:
         neighbs= list(node_neighbors[currentNode])
-        print(f"we are at: {currentNode} with neighbours {neighbs}\n")
+        # print(f"we are at: {currentNode} with neighbours {neighbs}\n")
 
         if len(neighbs)==1: # We go to this neighbour
             vertex= neighbs[0]
-            print(f'we only have one neighbour to visit so we go to {vertex}')
+            # print(f'we only have one neighbour to visit so we go to {vertex}')
             trail.append((currentNode,vertex))
             if (vertex, currentNode) in edges:
                 edges.remove((vertex, currentNode))
@@ -477,10 +485,10 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     potentialtwocuts = dict()
     for path, info in specialPaths.items():
         if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL']:  # meaning that it is a bridge
-            print(f"specialPaths: {specialPaths}")
-            print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
-            print(f"start: {specialPaths[path]['Start']}")
-            print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
+            # print(f"specialPaths: {specialPaths}")
+            # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
+            # print(f"start: {specialPaths[path]['Start']}")
+            # print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
 
 
             pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
@@ -535,7 +543,7 @@ def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
             if edge[1] in vertices:
                 edgesComponent[(min(edge[0], edge[1]), max(edge[0], edge[1]))]=weight
 
-    print(f"length of edgetotalbased: {len(edgesComponent.keys())}")
+    print(f"length of edgetotalbased inn number of edges: {len(edgesComponent.keys())}")
     return edgesComponent
 if __name__ == "__main__":
 
@@ -575,8 +583,8 @@ if __name__ == "__main__":
             continue
         if 'RAVELIJN' in building:
             continue
-        if 'ZILVERLING' in building:
-            continue
+        # if 'ZILVERLING' in building:
+        #     continue
         buildingEmpty= PATH_empty+f"\\{building}"
         listOfFiles = os.listdir(buildingEmpty)
         for file in listOfFiles:
@@ -795,10 +803,10 @@ if __name__ == "__main__":
         bridges=dict()
         for path, info in specialPaths.items():
             if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL']:  # meaning that it is a bridge
-                print(f"EdgeCutspecialPaths: {specialPaths}")
-                print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
-                print(f"start: {specialPaths[path]['Start']}")
-                print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
+                # print(f"EdgeCutspecialPaths: {specialPaths}")
+                # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
+                # print(f"start: {specialPaths[path]['Start']}")
+                # print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
 
                 pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
 
@@ -818,6 +826,7 @@ if __name__ == "__main__":
                                                         prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname,
                                                         showboundplot=showboundplot,
                                                         saveboundplotname=saveboundplotname)
+
             return trailcomp, lengthtrail
 
 
@@ -830,10 +839,10 @@ if __name__ == "__main__":
                     print(f"We have a 1 cut")
                     print(f"one cuts are: {cutMade}\n with keys: {cutMade.keys()}")
                     #just take the first onecut and repeat the process.
-                    print(f"onecutedge:{cut} with: {nodeToCoordinate[cut[0]]} and \n {nodeToCoordinate[cut[1]]}")
-                    print(f"onecutinfo: {info}")
-                    print(f"neighbourhood of the cut edge:{neighbours[cut[0]]} and {neighbours[cut[1]]}")
-                    # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
+                    # print(f"onecutedge:{cut} with: {nodeToCoordinate[cut[0]]} and \n {nodeToCoordinate[cut[1]]}")
+                    # print(f"onecutinfo: {info}")
+                    # print(f"neighbourhood of the cut edge:{neighbours[cut[0]]} and {neighbours[cut[1]]}")
+                    # # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
                     # and the ones of onecut[1] are in c1 and building 1.
                     v0= cut[0]
                     v1= cut[1]
@@ -861,25 +870,28 @@ if __name__ == "__main__":
                         print(f"in reduce Graph bridges, we are free to find a longest trail anywhere in this component with c0:nvertices:{len(c0)}nedges:{len(edgesC0)} and then c1:nvertices:{len(c1)} nedges:{len(edgesC1)}.In total {max(list(neighbours.keys()))+1} vertices and {len(edges)} edges")
                         Tc0, LTc0= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder, specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                   maxtime=10, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c0
+                                   maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c0
+                        print(f"length Tc0: {LTc0}")
                         Tc1, LTc1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                   maxtime=10, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c1
-
+                                   maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c1
+                        print(f"length Tc1: {LTc1}")
                         Tv0, LTv0= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                   maxtime=10, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v0]) # longest trail in c0 that starts or ends in v0
+                                   maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v0]) # longest trail in c0 that starts or ends in v0
+                        print(f"length in c0 starting from v0: {LTv0}")
                         Tv1, LTv1= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                   maxtime=10, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v1]) # longest trail in c1 that starts or ends in v1
-
+                                   maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v1]) # longest trail in c1 that starts or ends in v1
+                        print(f"length in c1 starting from v1: {LTv1}")
                         # now calculate the length, so first see if v0v1 is in the edges, or the other way around:
                         LTc0c1= LTv0+edges[cut]+LTv1
+                        print(f"so length c0c1:{LTc0c1}")
 
                         T=max(LTc0,LTc0c1 ,LTc1)
-                        if T == LTv0:
+                        if T == LTc0:
                             return  Tc0, LTc0
-                        elif T== LTv1:
+                        elif T== LTc1:
                             return Tc1, LTc1
                         else:
                             # Construct the combined trail, starting in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1
@@ -941,21 +953,21 @@ if __name__ == "__main__":
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                             elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
-                                                            maxtime=10, maxgap=None, printtime=5,
+                                                            maxtime=maxtime, maxgap=None, printtime=5,
                                                             elevatorVertices=elevatorVertices,
                                                             ends=ends)  # longest trail in c1 that starts or ends in v1
                         Tc0v0, LTc0v0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                             elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
-                                                            maxtime=10, maxgap=None, printtime=5,
+                                                            maxtime=maxtime, maxgap=None, printtime=5,
                                                             elevatorVertices=elevatorVertices,
                                                             ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                         Tv1, LTv1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                             elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
-                                                            maxtime=10, maxgap=None, printtime=5,
+                                                            maxtime=maxtime, maxgap=None, printtime=5,
                                                             elevatorVertices=elevatorVertices,
                                                             ends=[v1])  # longest trail in c1 that starts or ends in v1
                         LTc0c1= LTc0v0+edges[cut]+LTv1
@@ -1005,7 +1017,7 @@ if __name__ == "__main__":
                                                                     figuresResultBuildings=figuresResultBuildings,
                                                                     elevatorEdges=elevatorEdges,
                                                                     nodeToCoordinate=nodeToCoordinate,  vdummy=vdummy,
-                                                                    maxtime=10, maxgap=None, printtime=5,
+                                                                    maxtime=maxtime, maxgap=None, printtime=5,
                                                                     elevatorVertices=elevatorVertices,
                                                                     ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
                             if ends[0] in Tc0[0]:#they are in the correct order
@@ -1023,7 +1035,7 @@ if __name__ == "__main__":
                                                                 figuresResultBuildings=figuresResultBuildings,
                                                                 elevatorEdges=elevatorEdges,
                                                                 nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                                                maxtime=10, maxgap=None, printtime=5,
+                                                                maxtime=maxtime, maxgap=None, printtime=5,
                                                                 elevatorVertices=elevatorVertices,
                                                                 ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
                             if ends[0] in Tc1[0]:  # they are in the correct order
@@ -1062,7 +1074,7 @@ if __name__ == "__main__":
                                                                     figuresResultBuildings=figuresResultBuildings,
                                                                     elevatorEdges=elevatorEdges,
                                                                     nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                                                    maxtime=10, maxgap=None, printtime=5,
+                                                                    maxtime=maxtime, maxgap=None, printtime=5,
                                                                     elevatorVertices=elevatorVertices,
                                                                     ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                             Tc1v1, LTc1v1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
@@ -1070,7 +1082,7 @@ if __name__ == "__main__":
                                                                     figuresResultBuildings=figuresResultBuildings,
                                                                     elevatorEdges=elevatorEdges,
                                                                     nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                                                    maxtime=10, maxgap=None, printtime=5,
+                                                                    maxtime=maxtime, maxgap=None, printtime=5,
                                                                     elevatorVertices=elevatorVertices,
                                                                     ends=[v1,ends[1]])  # longest trail in c0 that starts or ends in v0
                             LTc0c1= LTc0v0 + edges(cut) + LTc1v1
@@ -1150,7 +1162,7 @@ if __name__ == "__main__":
                            maxtime=45, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
                            prefixdrawcomp='RunCarreZI', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
-    print(f"nodeToCoordinate:{nodeToCoordinate}")
+    # print(f"nodeToCoordinate:{nodeToCoordinate}")
     buildingsvisited=dict()
     weightcheck=0
     for edge in trail:
@@ -1178,22 +1190,20 @@ if __name__ == "__main__":
                 buildingsvisited[building]={floor}
         else:
             print(f"vertex {edge[1]} is not in node to coordinate")
-    print(f"trail with {len(trail)} of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
+    print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
     # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
-    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='drawtrailend')
-    # todraw=[]
-    # for edge in trail:
-    #     if (edge[0], edge[1]) in hallways:
-    #         todraw.append({"key": edge, "value": hallways[edge]})
-    #     else:
-    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
+    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CRandZI')
+    todraw=[]
+    for edge in trail:
+        if (edge[0], edge[1]) in hallways:
+            todraw.append({"key": edge, "value": hallways[edge]})
+        else:
+            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
 
 
-
-    # todraw= [{"key": edge, "value": hallways[edge]} for edge in trail]
-    # with open("trailcarrelong.json", "w") as outfile:
-    #     json.dump(todraw, outfile)
+    with open("trailcarrezilverling.json", "w") as outfile:
+        json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
 
 

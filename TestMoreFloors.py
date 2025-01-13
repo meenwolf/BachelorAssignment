@@ -21,6 +21,8 @@ import gurobi_logtools as glt
 import plotly.graph_objects as go
 from datetime import datetime
 
+from MoreBuildings import constructTrailCheckComponents
+
 
 #Connect special paths, elevators first:
 #CONVENTION: use double digits for index elevator, stair, exit, and double digits for the floors! to keep things consistent
@@ -100,7 +102,9 @@ class TSPCallback:
         """Callback entry point: call lazy constraints routine when new
         solutions are found. Stop the optimization if there is an exception in
         user code."""
+
         if where == GRB.Callback.MIPSOL:
+            # if model.getAttr(GRB.Attr.MIPGap)<30:
             try:
                 self.eliminate_subtours(model)
             except Exception:
@@ -114,7 +118,18 @@ class TSPCallback:
         Assumes we are at MIPSOL."""
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
-
+        # trail= constructTrailCheckComponents(,edges, self.vdum,)
+        # bestbound = model.cbGet(GRB.Callback.MIPSOL_OBJBND)
+        # longestTrail = 0
+        # for edge in trail:
+        #     if edge in self.halls:
+        #         longestTrail += self.halls[edge]
+        #     else:
+        #         longestTrail += self.halls[(edge[1], edge[0])]
+        # gap = abs(bestbound - longestTrail) / abs(longestTrail)
+        # print(f"gap:{gap} bestbound:{bestbound}, lngest trail: {longestTrail}, gap:{gap}")
+        # if gap < 30:
+        #     model.terminate()
         reachableVdum, notReachableVdum = vdum_reachable(edges, self.vdum)
 
         edgesS = [(v, n) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum]
@@ -731,7 +746,7 @@ if __name__ == "__main__":
     lengthLongestTrail=model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")
     used_edges= getEdgesResult(model, varshall)
-    drawEdgesInFloorplans([edge for edge in used_edges if vdummy not in edge], nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename='isconnectedresult')
+    # drawEdgesInFloorplans([edge for edge in used_edges if vdummy not in edge], nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename='isconnectedresult')
 
     # vdummy=max(list(neighbours.keys()))
     print(f"we have {vdummy} as dummy vertex")
