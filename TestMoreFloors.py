@@ -459,26 +459,33 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                     color = rgb_to_string(rainbowColors[i])
                     if specialEdges[edge][2]=="E":
                         # We found elevator connection for which we might need to print a number
-                        if edges[i+1] in elevatorEdges:
+                        if edges[i + 1] in elevatorEdges:
                             # We step into the elevator so we need to print a number
-                            toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
+                            toFloor = nodeToCoordinate[edges[i + 3][0]]['Floor']
                             drawCoord = nodeToCoordinate[edge[1]]['Location']
+                        elif edges[i - 1] in elevatorEdges:
+                            # we step out of the elevator, but still print a number from which floor we came for if you walk in the other order
+                            toFloor = nodeToCoordinate[edges[i - 3][1]]['Floor']
+                            drawCoord = nodeToCoordinate[edge[0]]['Location']
+                        else:
+                            print(f"EDGE {edge} with name{specialEdges[edge]} is not in or out of an elevator!")
 
-                            if building0 == "CARRE 1412":
-                                if floor0 == '4':# since this floor had a weird shift in it
-                                    drawCoord = drawCoord + 126.822 + 494.891j
+                        if building0 == "CARRE 1412":
+                            if floor0 == '4':  # since this floor had a weird shift in it
+                                drawCoord = drawCoord + 126.822 + 494.891j
 
-                            # Add the number
-                            text_element = ET.Element("text", attrib={
-                                "x": str(drawCoord.real),
-                                "y": str(drawCoord.imag),
-                                "font-size": "24",  # Font size in pixels
-                                "fill": "saddlebrown",  # Text color
-                                "stroke": "saddlebrown"
-                            })
-                            text_element.text = str(toFloor)
-                            thisRoot = figuresResultBuildings[building0][floor0]['root']
-                            thisRoot.append(text_element)
+                        # Add the number
+                        text_element = ET.Element("text", attrib={
+                            "x": str(drawCoord.real),
+                            "y": str(drawCoord.imag),
+                            "font-size": "24",  # Font size in pixels
+                            "fill": "saddlebrown",  # Text color
+                            "stroke": "saddlebrown"
+                        })
+                        text_element.text = str(toFloor)
+                        thisRoot = figuresResultBuildings[building0][floor0]['root']
+                        thisRoot.append(text_element)
+
 
                 else:
                     # Normal edges are also colored according to the fading rainbow.
@@ -517,6 +524,24 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                 })
                 text_element.text = str(toFloor)
                 thisRoot = figuresResultBuildings[building0][floor0]['root']
+                thisRoot.append(text_element)
+
+                #Also add the other way
+                toFloor = nodeToCoordinate[edge[0]]['Floor']
+                drawCoord = nodeToCoordinate[edge[1]]['Location']
+                if building0 == "CARRE 1412":
+                    if floor1 == '4':  # since this floor had a weird shift in it
+                        drawCoord = drawCoord + 126.822 + 494.891j
+
+                text_element = ET.Element("text", attrib={
+                    "x": str(drawCoord.real),
+                    "y": str(drawCoord.imag),
+                    "font-size": "24",  # Font size in pixels
+                    "fill": "saddlebrown",  # Text color
+                    "stroke": "saddlebrown"
+                })
+                text_element.text = str(toFloor)
+                thisRoot = figuresResultBuildings[building0][floor1]['root']
                 thisRoot.append(text_element)
         else:
             # We go from building0 to building1

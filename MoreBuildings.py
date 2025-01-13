@@ -75,6 +75,7 @@ def runModelends(logfolder, halls, neighbours,ends=[],nvdum=None, maxtime=None, 
     assert len(ends) in [0,1,2]
     if len(ends)>0:
         for end in ends:
+            print(f"ENDS:{ends}:end{end} in runmodelends, {(nvdum, end)}")
             m.addConstr(varssol[(nvdum, end)]==1, name=f'mustStartorEndin{end}')
             # m.addConstr(varssol[(end, nvdum)]==1, name=f'mustStartorEndin{end}')
 
@@ -256,24 +257,30 @@ def drawAllEdges(edges):
                         # We found elevator connection for which we might need to print a number
                         if edges[i+1] in elevatorEdges:
                             # We step into the elevator so we need to print a number
-                            toFloor= nodeToCoordinate[edges[i+3][0]]['Floor']
+                            toFloor= nodeToCoordinate[edges[i+2][0]]['Floor']
                             drawCoord = nodeToCoordinate[edge[1]]['Location']
+                        elif edges[i-1] in elevatorEdges:
+                            # we step out of the elevator, but still print a number from which floor we came for if you walk in the other order
+                            toFloor = nodeToCoordinate[edges[i -2][0]]['Floor']
+                            drawCoord = nodeToCoordinate[edge[0]]['Location']
+                        else:
+                            print(f"EDGE {edge} with name{specialEdges[edge]} is not in or out of an elevator!")
 
-                            if building0 == "CARRE 1412":
-                                if floor0 == '4':# since this floor had a weird shift in it
-                                    drawCoord = drawCoord + 126.822 + 494.891j
+                        if building0 == "CARRE 1412":
+                            if floor0 == '4':# since this floor had a weird shift in it
+                                drawCoord = drawCoord + 126.822 + 494.891j
 
-                            # Add the number
-                            text_element = ET.Element("text", attrib={
-                                "x": str(drawCoord.real),
-                                "y": str(drawCoord.imag),
-                                "font-size": "24",  # Font size in pixels
-                                "fill": "saddlebrown",  # Text color
-                                "stroke": "saddlebrown"
-                            })
-                            text_element.text = str(toFloor)
-                            thisRoot = figuresResultBuildings[building0][floor0]['root']
-                            thisRoot.append(text_element)
+                        # Add the number
+                        text_element = ET.Element("text", attrib={
+                            "x": str(drawCoord.real),
+                            "y": str(drawCoord.imag),
+                            "font-size": "24",  # Font size in pixels
+                            "fill": "saddlebrown",  # Text color
+                            "stroke": "saddlebrown"
+                        })
+                        text_element.text = str(toFloor)
+                        thisRoot = figuresResultBuildings[building0][floor0]['root']
+                        thisRoot.append(text_element)
 
                     elif specialEdges[edge][2]=="C":
                         #We go to a walking bridge, so we print the building on the end
@@ -367,13 +374,16 @@ def constructTrailCheckComponents(edgeswithdum,vdum):
     #         edges.remove(edge)
 
     print(node_neighbors)
-
+    currentNode=False
     for node, neighbs in node_neighbors.items():
         neighbs= list(neighbs)
-        if len(neighbs)==1:
+        if len(neighbs)%2 ==1:
             # We found a start!
             print(f"potential start: {node}")
             currentNode=node
+    if not currentNode:
+        print(f"all vertices have even degree, so just take the first one {edges[0][0]}")
+        currentNode = edges[0][0]
 
     while len(trail)<nedges-2:
         neighbs= list(node_neighbors[currentNode])
@@ -579,10 +589,10 @@ if __name__ == "__main__":
     for building in os.listdir(PATH_drawings):
         if 'WAAIER' in building:
             continue
-        if 'CITADEL' in building:
-            continue
-        if 'RAVELIJN' in building:
-            continue
+        # if 'CITADEL' in building:
+        #     continue
+        # if 'RAVELIJN' in building:
+        #     continue
         # if 'ZILVERLING' in building:
         #     continue
         buildingEmpty= PATH_empty+f"\\{building}"
@@ -609,6 +619,13 @@ if __name__ == "__main__":
                 #Now start extracting the path information
                 paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
                 lengthForOneMeter= 1
+                if "RAVELIJN" in building:
+                    if floor == '3': # Since the scale was missing, I measured myself what the length of 1 meter would be: 8
+                        if building in buildingScales:
+                            buildingScales[building][floor] = 8
+                        else:
+                            buildingScales[building] = {floor: 8}
+
                 for path, attr in zip(paths, attributes):
                     if "inkscape:label" in attr.keys():
                         if "1mtr" in attr['inkscape:label']:
@@ -876,10 +893,12 @@ if __name__ == "__main__":
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                    maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c1
                         print(f"length Tc1: {LTc1}")
+                        print(f"ends will be v0:{v0}")
                         Tv0, LTv0= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                    maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v0]) # longest trail in c0 that starts or ends in v0
                         print(f"length in c0 starting from v0: {LTv0}")
+                        print(f"ends will be v1:{v1}")
                         Tv1, LTv1= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                                figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                    maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v1]) # longest trail in c1 that starts or ends in v1
@@ -942,7 +961,7 @@ if __name__ == "__main__":
 
                             tempv= v0
                             v0=v1
-                            v1=tempvertices
+                            v1=tempv
 
                             tempbuilding= building0
                             building0= building1
@@ -956,6 +975,7 @@ if __name__ == "__main__":
                                                             maxtime=maxtime, maxgap=None, printtime=5,
                                                             elevatorVertices=elevatorVertices,
                                                             ends=ends)  # longest trail in c1 that starts or ends in v1
+                        print(f"ends will be [ends[0],v0]:{[ends[0],v0]}")
                         Tc0v0, LTc0v0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
@@ -963,6 +983,7 @@ if __name__ == "__main__":
                                                             maxtime=maxtime, maxgap=None, printtime=5,
                                                             elevatorVertices=elevatorVertices,
                                                             ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
+                        print(f"ends will be v1:{v1}")
                         Tv1, LTv1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
@@ -1012,6 +1033,7 @@ if __name__ == "__main__":
 
                         if ends[0] in c0 and ends[1] in c0:
                             print(f"we only have to find a longest trail in c0 with ends {ends}")
+                            print(f"ends was:{ends} and will be the same: {ends}")
                             Tc0, LTc0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                     specialEdges=specialEdges,
                                                                     figuresResultBuildings=figuresResultBuildings,
@@ -1063,12 +1085,13 @@ if __name__ == "__main__":
 
                                 tempv = v0
                                 v0 = v1
-                                v1 = tempvertices
+                                v1 = tempv
 
                                 tempbuilding = building0
                                 building0 = building1
                                 building1 = tempbuilding
                             #Now find a longest trail in co from ends0 to v0 and a longest trail in c1 from v1 to ends1
+                            print(f"ends will be: [ends[0],v0]: {[ends[0],v0]}")
                             Tc0v0, LTc0v0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                     specialEdges=specialEdges,
                                                                     figuresResultBuildings=figuresResultBuildings,
@@ -1077,6 +1100,7 @@ if __name__ == "__main__":
                                                                     maxtime=maxtime, maxgap=None, printtime=5,
                                                                     elevatorVertices=elevatorVertices,
                                                                     ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
+                            print(f"ends will be: [v1,ends[1]]: {[v1,ends[1]]}")
                             Tc1v1, LTc1v1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                                     specialEdges=specialEdges,
                                                                     figuresResultBuildings=figuresResultBuildings,
@@ -1085,7 +1109,7 @@ if __name__ == "__main__":
                                                                     maxtime=maxtime, maxgap=None, printtime=5,
                                                                     elevatorVertices=elevatorVertices,
                                                                     ends=[v1,ends[1]])  # longest trail in c0 that starts or ends in v0
-                            LTc0c1= LTc0v0 + edges(cut) + LTc1v1
+                            LTc0c1= LTc0v0 + edges[cut] + LTc1v1
                             # Construct the combined trail, starting in ends[0] in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1 to ends1
                             # check the order of the edges in Tv0,
                             if ends[0] in Tc0v0[0]:
@@ -1150,7 +1174,7 @@ if __name__ == "__main__":
         #     # fig.update_yaxes(title_text="Objective value function (in meters)")
         #     # fig.update_layout(title_text="The bounds on the length of the longest trail through CI, RA, ZI and CR, <br> at each moment in time when running the gurobi solver")
         #     # fig.show()
-    # drawAllEdges(list(hallways.keys()))
+
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
@@ -1192,8 +1216,9 @@ if __name__ == "__main__":
             print(f"vertex {edge[1]} is not in node to coordinate")
     print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
-    # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
-    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CRandZI')
+    # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
+    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CItoCR')
+    # exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales)
     todraw=[]
     for edge in trail:
         if (edge[0], edge[1]) in hallways:
@@ -1202,7 +1227,7 @@ if __name__ == "__main__":
             todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
 
 
-    with open("trailcarrezilverling.json", "w") as outfile:
+    with open("trailCItoCR.json", "w") as outfile:
         json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
 
