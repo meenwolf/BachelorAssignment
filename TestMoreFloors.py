@@ -59,8 +59,9 @@ def getReachable(neighborhoods, start, reachable=None):
     return reachable
 
 # Add hallways to the dummy vertex:
-def addDummy(neighbours, weigthededges):
-    vdum= max(list(neighbours.keys()))+1
+def addDummy(neighbours, weigthededges, vdum=None):
+    if vdum ==None:
+        vdum= max(list(neighbours.keys()))+1
     neighbours[vdum] = {v for v in neighbours.keys()}
 
     for i in neighbours.keys():
@@ -88,11 +89,12 @@ class TSPCallback:
     callbacks, solutions are checked for disconnected subtours and then add subtour elimination
     constraints if needed/ the solution contains disconneced subtours."""
 
-    def __init__(self, nodes, x, neighbours, weightedhalls):
+    def __init__(self, nodes, x, neighbours, weightedhalls, vdum):
         self.nodes = nodes
         self.x = x
         self.neighbs=neighbours
         self.halls=weightedhalls
+        self.vdum=vdum
 
     def __call__(self, model, where):
         """Callback entry point: call lazy constraints routine when new
@@ -113,12 +115,12 @@ class TSPCallback:
         values = model.cbGetSolution(self.x)
         edges = [(i, j) for (i, j), v in values.items() if v > 0.5]
 
-        reachableVdum, notReachableVdum = vdum_reachable(edges, len(self.nodes)-1)
+        reachableVdum, notReachableVdum = vdum_reachable(edges, self.vdum)
 
         edgesS = [(v, n) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum] + [(n, v) for v in reachableVdum for n in self.neighbs[v] if n in reachableVdum]
         edgesNotS = [(v, n) for v in notReachableVdum for n in self.neighbs[v] if n in notReachableVdum] + [(n, v) for v in notReachableVdum for n in self.neighbs[v] if n in notReachableVdum]
         edgeCutS= [edge for edge in self.halls.keys() if (edge not in edgesNotS) and (edge not in edgesS)]
-
+        # for i in range(len(edgesS)):
         for g in edgesNotS:
             model.cbLazy(
                 quicksum([self.x[edge] for edge in edgeCutS])
@@ -174,7 +176,7 @@ def runModel(logfolder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None,
 
     # Set up for the callbacks/ lazy constraints for connectivity
     m.Params.LazyConstraints = 1
-    cb = TSPCallback(range(nvdum+1), varssol, neighbours,halls)
+    cb = TSPCallback(range(nvdum+1), varssol, neighbours,halls, nvdum)
 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
@@ -729,6 +731,8 @@ if __name__ == "__main__":
     lengthLongestTrail=model.getAttr('ObjVal')
     print(f"The longest trail is {lengthLongestTrail} meters long")
     used_edges= getEdgesResult(model, varshall)
+    drawEdgesInFloorplans([edge for edge in used_edges if vdummy not in edge], nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,PATH_result, prefixfilename='isconnectedresult')
+
     # vdummy=max(list(neighbours.keys()))
     print(f"we have {vdummy} as dummy vertex")
     print(f"edges used that are connected to the dummy vertex: {[edge for edge in used_edges if vdummy in edge]}")
