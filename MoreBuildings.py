@@ -87,7 +87,7 @@ def runModelends(logfolder, halls, neighbours,ends=[],nvdum=None, maxtime=None, 
 
     # Call optimize with the callback structure to get a connected solution solution
     m.optimize(cb)
-    all_vars = m.getVars()
+    # all_vars = m.getVars()
     # values = m.getAttr("X", all_vars)
     # names = m.getAttr("VarName", all_vars)
     # nedges=0
