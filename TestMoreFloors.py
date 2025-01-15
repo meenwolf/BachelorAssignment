@@ -143,31 +143,31 @@ class TSPCallback:
         edgeCutS= [edge for edge in self.halls.keys() if (edge not in edgesNotS) and (edge not in edgesS)]
         # print(f"are two methods to find edge cut equal? set:{set(edgeCutS)==set(edgeCut)} lists:{edgeCutS==edgeCut}")
         # for i in range(len(edgesS)):
-        if len(edgesNotS) ==0:
-            print(f"NO CALLBACK CONSTRAINTS ADDED")
-        else:
-            print(f"CALLBACK CONSTRAINTS ADDED")
+        # if len(edgesNotS) ==0:
+        #     print(f"NO CALLBACK CONSTRAINTS ADDED")
+        # else:
+        #     print(f"CALLBACK CONSTRAINTS ADDED")
+            # model.cbLazy(
+            #     quicksum([self.x[edge] for edge in edgeCutS])
+            #     >= 2 )
+
+
+        for g in edgesNotS:
+            #Mayyybee instead of adding them for any combination, I should use that if there is an edge in E^*[S] and one in E^*[V\S], that
+            # The number of edges from the cut that must be present in the solution is >=2
+            # lhs= sum([model.cbGetSolution(self.x[edge]) for edge in edgeCutS])
+            # rhs= 2* (model.cbGetSolution(self.x[edgesS[0]])+ model.cbGetSolution(self.x[g])-1)
+            # print(f" lhs={lhs}  >= rhs={rhs}")
             model.cbLazy(
                 quicksum([self.x[edge] for edge in edgeCutS])
-                >= 2 )
-
-
-        # for g in edgesNotS:
-        #     #Mayyybee instead of adding them for any combination, I should use that if there is an edge in E^*[S] and one in E^*[V\S], that
-        #     # The number of edges from the cut that must be present in the solution is >=2
-        #     lhs= sum([model.cbGetSolution(self.x[edge]) for edge in edgeCutS])
-        #     rhs= 2* (model.cbGetSolution(self.x[edgesS[0]])+ model.cbGetSolution(self.x[g])-1)
-        #     print(f" lhs={lhs}  >= rhs={rhs}")
-        #     # model.cbLazy(
-        #     #     quicksum([self.x[edge] for edge in edgeCutS])
-        #     #     >= 2 * (self.x[edgesS[0]] + self.x[g] - 1))
+                >= 2 * self.x[g])
 
 
 def runModel(logfolder, halls, neighbours,nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
     if nvdum== None:
         nvdum=max(list(neighbours.keys()))
 
-    print(f"IN MODELRUN VDUM:{nvdum}")
+    # print(f"IN MODELRUN VDUM:{nvdum}")
     m = Model()
     if maxtime != None:
         m.Params.TimeLimit = maxtime
