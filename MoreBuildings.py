@@ -1183,52 +1183,52 @@ if __name__ == "__main__":
     boundplotname = f'{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices,
-                           prefixdrawcomp='RunCarreZI', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+                           maxtime=120, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices,
+                           prefixdrawcomp='RunCRtoCInew2min', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     # print(f"nodeToCoordinate:{nodeToCoordinate}")
-    buildingsvisited=dict()
-    weightcheck=0
-    for edge in trail:
-        if edge in hallways:
-            if hallways[edge]<0:
-                print(f"length of edge{edge} is{hallways[edge]}")
-            weightcheck+= hallways[edge]
-        else:
-            if hallways[(edge[1],edge[0])]<0:
-                print(f"length of edge{(edge[1],edge[0])} is{hallways[(edge[1],edge[0])]}")
-            weightcheck+= hallways[(edge[1],edge[0])]
-        if edge[0] in nodeToCoordinate:
-            building, floor= getBuildingFloor(edge[0], nodeToCoordinate)
-            if building in buildingsvisited:
-                buildingsvisited[building].add(floor)
-            else:
-                buildingsvisited[building]={floor}
-        else:
-            print(f"vertex {edge[0]} is not in node to coordinate")
-        if edge[1] in nodeToCoordinate:
-            building, floor= getBuildingFloor(edge[1], nodeToCoordinate)
-            if building in buildingsvisited:
-                buildingsvisited[building].add(floor)
-            else:
-                buildingsvisited[building]={floor}
-        else:
-            print(f"vertex {edge[1]} is not in node to coordinate")
-    print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
+    # buildingsvisited=dict()
+    # weightcheck=0
+    # for edge in trail:
+    #     if edge in hallways:
+    #         if hallways[edge]<0:
+    #             print(f"length of edge{edge} is{hallways[edge]}")
+    #         weightcheck+= hallways[edge]
+    #     else:
+    #         if hallways[(edge[1],edge[0])]<0:
+    #             print(f"length of edge{(edge[1],edge[0])} is{hallways[(edge[1],edge[0])]}")
+    #         weightcheck+= hallways[(edge[1],edge[0])]
+    #     if edge[0] in nodeToCoordinate:
+    #         building, floor= getBuildingFloor(edge[0], nodeToCoordinate)
+    #         if building in buildingsvisited:
+    #             buildingsvisited[building].add(floor)
+    #         else:
+    #             buildingsvisited[building]={floor}
+    #     else:
+    #         print(f"vertex {edge[0]} is not in node to coordinate")
+    #     if edge[1] in nodeToCoordinate:
+    #         building, floor= getBuildingFloor(edge[1], nodeToCoordinate)
+    #         if building in buildingsvisited:
+    #             buildingsvisited[building].add(floor)
+    #         else:
+    #             buildingsvisited[building]={floor}
+    #     else:
+    #         print(f"vertex {edge[1]} is not in node to coordinate")
+    # print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
     # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
     # drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CItoCR')
-    # # exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales)
-    # todraw=[]
-    # for edge in trail:
-    #     if (edge[0], edge[1]) in hallways:
-    #         todraw.append({"key": edge, "value": hallways[edge]})
-    #     else:
-    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
-    #
-    #
-    # with open("trailCItoCR.json", "w") as outfile:
-    #     json.dump(todraw, outfile)
+    exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales)
+    todraw=[]
+    for edge in trail:
+        if (edge[0], edge[1]) in hallways:
+            todraw.append({"key": edge, "value": hallways[edge]})
+        else:
+            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
+
+
+    with open("trailCItoCR2min.json", "w") as outfile:
+        json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
 
 
