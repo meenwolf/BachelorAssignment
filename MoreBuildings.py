@@ -1183,7 +1183,7 @@ if __name__ == "__main__":
     boundplotname = f'{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=45, maxgap=None, printtime=5, logfile=logfile, elevatorVertices=elevatorVertices,
+                           maxtime=45, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices,
                            prefixdrawcomp='RunCarreZI', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     # print(f"nodeToCoordinate:{nodeToCoordinate}")
