@@ -1183,8 +1183,8 @@ if __name__ == "__main__":
     boundplotname = f'{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=120, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices,
-                           prefixdrawcomp='RunCRtoCInew2min', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices,
+                           prefixdrawcomp='RunCRtoCI3', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     # print(f"nodeToCoordinate:{nodeToCoordinate}")
     # buildingsvisited=dict()
@@ -1218,17 +1218,17 @@ if __name__ == "__main__":
 
     # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
     # drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CItoCR')
-    exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales)
-    todraw=[]
-    for edge in trail:
-        if (edge[0], edge[1]) in hallways:
-            todraw.append({"key": edge, "value": hallways[edge]})
-        else:
-            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
-
-
-    with open("trailCItoCR2min.json", "w") as outfile:
-        json.dump(todraw, outfile)
+    # exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales)
+    # todraw=[]
+    # for edge in trail:
+    #     if (edge[0], edge[1]) in hallways:
+    #         todraw.append({"key": edge, "value": hallways[edge]})
+    #     else:
+    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
+    #
+    #
+    # with open("trailCItoCR2min.json", "w") as outfile:
+    #     json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
 
 
