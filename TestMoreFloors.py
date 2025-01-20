@@ -1,9 +1,7 @@
 import os
 from os.path import split
 
-from bokeh.colors.named import saddlebrown
-from networkx.classes import neighbors
-from scipy.cluster.hierarchy import weighted
+import kaleido
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
@@ -595,26 +593,29 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
 
 def plotBounds(logfolder, logfile, title, showresult=False, savename=False):
     logpath = logfolder + logfile
-
+    print(f"path to parse: {logpath}")
     results = glt.parse(logpath)
     nodelogs = results.progress("nodelog")
     pd.set_option("display.max_columns", None)
     # print(f"type of nodelogs: {nodelogs}, and has columns: {[i for i in nodelogs]}")
-    # print(nodelogs.head(10))
+    print(nodelogs.head(10))
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["Incumbent"], mode='markers', name="Primal Bound"))
     fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers', name="Dual Bound"))
     fig.update_xaxes(title_text="Runtime in seconds")
     fig.update_yaxes(title_text="Objective value function (in meters)")
     fig.update_layout(title_text=title)
+    # if showresult:
+    #     fig.show()
+
     if savename:
         PATHplot = logfolder + f"\\boundsOverTime"
         if not os.path.exists(PATHplot):
             os.mkdir(PATHplot)
-        fig.write_image(PATHplot + "\\" + savename)
+        print(f"pathplot: {PATHplot}")
+        print(f"file will be saved to :{PATHplot + "\\" + savename}")
+        fig.write_html(PATHplot+"\\"+savename)
 
-    if showresult:
-        fig.show()
 if __name__ == "__main__":
 
     # Get the path to the drawings
