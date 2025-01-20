@@ -498,7 +498,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                         text_element = ET.Element("text", attrib={
                             "x": str(drawCoord.real),
                             "y": str(drawCoord.imag),
-                            "font-size": "24",  # Font size in pixels
+                            "font-size": "42",  # Font size in pixels
                             "fill": "saddlebrown",  # Text color
                             "stroke": "saddlebrown"
                         })
@@ -538,7 +538,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "24",  # Font size in pixels
+                    "font-size": "42",  # Font size in pixels
                     "fill": "saddlebrown",  # Text color
                     "stroke": "saddlebrown"
                 })
@@ -556,7 +556,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "24",  # Font size in pixels
+                    "font-size": "42",  # Font size in pixels
                     "fill": "saddlebrown",  # Text color
                     "stroke": "saddlebrown"
                 })
@@ -574,7 +574,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
             text_element = ET.Element("text", attrib={
                 "x": str(drawCoord.real),
                 "y": str(drawCoord.imag),
-                "font-size": "24",  # Font size in pixels
+                "font-size": "42",  # Font size in pixels
                 "fill": "saddlebrown",  # Text color
                 "stroke": "saddlebrown"
             })

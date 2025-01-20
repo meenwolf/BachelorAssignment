@@ -1186,13 +1186,13 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    # titleplot = "The bounds on the length of a longest trail in Ravelijn,<br> at each moment in time when running the gurobi solver for 2 hours."
+    titleplot = "The bounds on the length of a longest trail in Ravelijn floor 1 and 2,<br> at each moment in time when running the gurobi solver for 1 hours."
     # titleplot = "The bounds on the length of a longest trail in through CI,RA,ZI and CR,<br> at each moment in time when running the gurobi solver for 90 seconds per component."
 
-    # boundplotname = f'RA{datenew}.svg'
+    boundplotname = f'RA{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=900, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           maxtime=3600, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     # print(f"nodeToCoordinate:{nodeToCoordinate}")
@@ -1226,24 +1226,18 @@ if __name__ == "__main__":
     # print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
     # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
-    # exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, prefix="RA")
+    exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, prefix="RA")
     drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='RA')
-    # todraw=[]
-    # for edge in trail:
-    #     if (edge[0], edge[1]) in hallways:
-    #         todraw.append({"key": edge, "value": hallways[edge]})
-    #     else:
-    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
-    #
-    # with open("trailRA1hours.json", "w") as outfile:
-    #     json.dump(todraw, outfile)
-    # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
-    # print(f"export simple figure")
+    todraw=[]
+    for edge in trail:
+        if (edge[0], edge[1]) in hallways:
+            todraw.append({"key": edge, "value": hallways[edge]})
+        else:
+            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
 
+    with open("trailRA1hours.json", "w") as outfile:
+        json.dump(todraw, outfile)
 
-    # print(f"we are about to plot the bounds")
-
-
-    # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, showresult=True, savename='boundsOnRA.html')
+    plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, showresult=True, savename='boundsOnRA.html')
 
 
