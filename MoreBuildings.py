@@ -1227,16 +1227,15 @@ if __name__ == "__main__":
     # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
     exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, prefix="CItoCR")
     drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CItoCR')
-    # todraw=[]
-    # for edge in trail:
-    #     if (edge[0], edge[1]) in hallways:
-    #         todraw.append({"key": edge, "value": hallways[edge]})
-    #     else:
-    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
-    #
-    #
-    # with open("trailCItoCR2min.json", "w") as outfile:
-    #     json.dump(todraw, outfile)
+    todraw=[]
+    for edge in trail:
+        if (edge[0], edge[1]) in hallways:
+            todraw.append({"key": edge, "value": hallways[edge]})
+        else:
+            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
+
+    with open("trailCItoCR90sec.json", "w") as outfile:
+        json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
     # print(f"export simple figure")
 
