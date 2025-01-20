@@ -597,16 +597,17 @@ if __name__ == "__main__":
             continue
         # if 'RAVELIJN' in building:
         #     continue
-        # if 'ZILVERLING' in building:
-        #     continue
-        # if 'CARRE' in building:
-        #     continue
+        if 'ZILVERLING' in building:
+            continue
+        if 'CARRE' in building:
+            continue
         buildingEmpty= PATH_empty+f"\\{building}"
         listOfFiles = os.listdir(buildingEmpty)
         for file in listOfFiles:
             if file.endswith(".svg"):
                 floor= file.split('.')[1]
-
+                if floor in ['0','3','4','5','6']:
+                    continue
                 newFigurePath = buildingEmpty + f"\\{file}"
 
                 tree = ET.parse(newFigurePath)
@@ -1191,7 +1192,7 @@ if __name__ == "__main__":
     # boundplotname = f'RA{datenew}.svg'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           maxtime=900, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
     # print(f"nodeToCoordinate:{nodeToCoordinate}")
@@ -1225,17 +1226,17 @@ if __name__ == "__main__":
     # print(f"trail with {len(trail)} edges of sanity check:{weightcheck} meters long goes through:{buildingsvisited}")
 
     # # drawAllEdges(edges=trail)#, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings, resultfolder= PATH_result, prefixfilename='TestCRZI')
-    exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, prefix="CItoCR")
-    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='CItoCR')
-    todraw=[]
-    for edge in trail:
-        if (edge[0], edge[1]) in hallways:
-            todraw.append({"key": edge, "value": hallways[edge]})
-        else:
-            todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
-
-    with open("trailCItoCR90sec.json", "w") as outfile:
-        json.dump(todraw, outfile)
+    # exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, prefix="RA")
+    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='RA')
+    # todraw=[]
+    # for edge in trail:
+    #     if (edge[0], edge[1]) in hallways:
+    #         todraw.append({"key": edge, "value": hallways[edge]})
+    #     else:
+    #         todraw.append({"key": edge, "value": hallways[(edge[1],edge[0])]})
+    #
+    # with open("trailRA1hours.json", "w") as outfile:
+    #     json.dump(todraw, outfile)
     # exportGraphinfo(trail,nodeToCoordinate, buildingScales)
     # print(f"export simple figure")
 
