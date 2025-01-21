@@ -11,13 +11,16 @@ PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
 floorplanPath = PATH+"\\Gebouwplattegronden"
 # Create a path where we want the JPG images to be placed:
 imagePath= PATH+"\\PNGimages"
-
 # And create the directory if it does not exist yet
 if not os.path.exists(imagePath):
     os.makedirs(imagePath)
 
 # Loop over the items in the directory
 for building in os.listdir(floorplanPath):
+    if not "NANO" in building:
+        print(f"we skip building: {building}")
+        continue
+    print(f"we will convert: {building}")
     # Save the path where the images for this building must come
     buildingImagesPath = imagePath + "\\" + building
 
