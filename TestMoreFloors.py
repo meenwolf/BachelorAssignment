@@ -2,6 +2,7 @@ import os
 from os.path import split
 
 import kaleido
+from holoviews.plotting.bokeh.styles import font_size
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
 from pprint import pprint
 from gurobipy import *
@@ -498,7 +499,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                         text_element = ET.Element("text", attrib={
                             "x": str(drawCoord.real),
                             "y": str(drawCoord.imag),
-                            "font-size": "42",  # Font size in pixels
+                            "font-size": "50",  # Font size in pixels
                             "fill": "saddlebrown",  # Text color
                             "stroke": "saddlebrown"
                         })
@@ -521,7 +522,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                     "d": Path(Line(start=startco, end=endco)).d(),
                     "stroke": color,
                     "fill": "none",
-                    "stroke-width": "2"
+                    "stroke-width": "5"
                 })
                 thisRoot= figuresResultBuildings[building0][floor0]['root']
                 thisRoot.append(new_path_element)
@@ -538,7 +539,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "42",  # Font size in pixels
+                    "font-size": "50",  # Font size in pixels
                     "fill": "saddlebrown",  # Text color
                     "stroke": "saddlebrown"
                 })
@@ -556,7 +557,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                 text_element = ET.Element("text", attrib={
                     "x": str(drawCoord.real),
                     "y": str(drawCoord.imag),
-                    "font-size": "42",  # Font size in pixels
+                    "font-size": "50",  # Font size in pixels
                     "fill": "saddlebrown",  # Text color
                     "stroke": "saddlebrown"
                 })
@@ -574,7 +575,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
             text_element = ET.Element("text", attrib={
                 "x": str(drawCoord.real),
                 "y": str(drawCoord.imag),
-                "font-size": "42",  # Font size in pixels
+                "font-size": "50",  # Font size in pixels
                 "fill": "saddlebrown",  # Text color
                 "stroke": "saddlebrown"
             })
@@ -604,7 +605,7 @@ def plotBounds(logfolder, logfile, title, showresult=False, savename=False):
     fig.add_trace(go.Scatter(x=nodelogs["Time"], y=nodelogs["BestBd"], mode='markers', name="Dual Bound"))
     fig.update_xaxes(title_text="Runtime in seconds")
     fig.update_yaxes(title_text="Objective value function (in meters)")
-    fig.update_layout(title_text=title)
+    fig.update_layout(title_text=title, font_size=24)
     # if showresult:
     #     fig.show()
 
