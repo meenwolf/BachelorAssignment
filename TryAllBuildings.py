@@ -18,7 +18,9 @@ if __name__ == "__main__":
                      "C01CIRA": 10, "C01RACI": 10,
                      "C01ZHNL": 10, "C01NLZH": 10, "C01RAZI": 10, "C01ZIRA": 10, }
 
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST"], floorsToSkip=[])
+    # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST"], floorsToSkip=[])
+    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","CITADEL","ZILVER","CARRE","WAAIER","NANO"], floorsToSkip=['0','3','4','5','6'])#floorsToSkip=[])
+
     existingvertices = set()
     for v0, v1 in hallways:
         existingvertices.add(v0)
@@ -29,9 +31,9 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    # titleplot = "The bounds on the length of a longest trail in Ravelijn floor 1 and 2,<br> at each moment in time when running the gurobi solver for 1 minute."
+    titleplot = "The bounds on the length of a longest trail in Ravelijn floor 1 and 2,<br> at each moment in time when running the gurobi solver for 15 seconds."
     #
-    # boundplotname = f'RA{datenew}.html'
+    boundplotname = f'RA{datenew}.html'
     trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
                            maxtime=10, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
@@ -43,11 +45,11 @@ if __name__ == "__main__":
         visitedvertices.add(v1)
     buildingsvisited= getBuildings(visitedvertices, nodeToCoordinate)
     print(f"and goes through: {buildingsvisited}")
-    exportGraphinfo(halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,prefix="minushorst")
+    exportGraphinfo(Path=PATH,halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,prefix="RA1and2")
 
 
-    # drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='RAshort')
+    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges, specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,resultfolder=PATH_result, prefixfilename='RA15sec')
 
 
-    # plotBounds(logfolder=PATH_logs, logfile='\\log2025-01-20 20-51-11.log', title=titleplot, savename=boundplotname)
+    plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 

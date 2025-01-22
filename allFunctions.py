@@ -316,7 +316,8 @@ def rgb_to_string(rgb_tuple):
 # Convert and write JSON object to file
 
 def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, figuresResultBuildings,resultfolder, prefixfilename):
-    rainbowColors= getRainbowColors(len(edges))
+    nedges=len(edges)
+    rainbowColors= getRainbowColors(nedges)
     startedge= edges[0]
     endedge= edges[-1]
 
@@ -344,20 +345,34 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
                     color = rgb_to_string(rainbowColors[i])
                     if specialEdges[edge][2]=="E":
                         # We found elevator connection for which we might need to print a number
-                        if edges[i + 1] in elevatorEdges:
-                            # We step into the elevator so we need to print a number
-                            toFloor = nodeToCoordinate[edges[i + 3][0]]['Floor']
-                            drawCoord = nodeToCoordinate[edge[1]]['Location']
-                        elif edges[i - 1] in elevatorEdges:
+                        if i+1 in range(nedges): #check that edge i is not the last one, because then we don't take an elevator anymore and don't print a number
+                            if edges[i + 1] in elevatorEdges:
+                                # We step into the elevator so we need to print a number
+                                toFloor = nodeToCoordinate[edges[i + 2][1]]['Floor']
+                                drawCoord = nodeToCoordinate[edge[1]]['Location']
+                            elif i-1 in range(nedges): #check if we are not at the first edge
+                                if edges[i - 1] in elevatorEdges:# we stepped just out of the elevator
+                                    # we step out of the elevator, but still print a number from which floor we came for if you walk in the other order
+                                    toFloor = nodeToCoordinate[edges[i - 2][0]]['Floor']
+                                    drawCoord = nodeToCoordinate[edge[0]]['Location']
+                                else:
+                                    print(f"we did not enter not leave an elevator so we draw nothing")
+                                    continue
+                            else:
+                                print(f"We start the trail by walking away from an elevator")
+                                continue
+                        elif edges[i-1] in elevatorEdges:#meaning that we just stepped out of an elevator
                             # we step out of the elevator, but still print a number from which floor we came for if you walk in the other order
-                            toFloor = nodeToCoordinate[edges[i - 3][1]]['Floor']
+                            toFloor = nodeToCoordinate[edges[i - 2][0]]['Floor']
                             drawCoord = nodeToCoordinate[edge[0]]['Location']
                         else:
-                            print(f"EDGE {edge} with name{specialEdges[edge]} is not in or out of an elevator!")
+                            print(f"we end our trail here because we already took the elevator")
+                            continue
 
                         if building0 == "CARRE 1412":
                             if floor0 == '4':  # since this floor had a weird shift in it
                                 drawCoord = drawCoord + 126.822 + 494.891j
+
 
                         # Add the number
                         text_element = ET.Element("text", attrib={
@@ -480,17 +495,25 @@ def plotBounds(logfolder, logfile, title, savename=False):
         fig.write_html(PATHplot+"\\"+savename, auto_open=False, validate=False)
 
 
-def exportGraphinfo(halls, nodeToCoordinate, scales,trail, prefix=""):
+def exportGraphinfo(Path, halls, nodeToCoordinate, scales,trail, prefix=""):
+    PATHd = Path + "\\dataruns"
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    datenew = date.replace(':', '-')
+    PATH_data = PATHd+f"\\log" + datenew + ".log"
+
+    if not os.path.exists(PATH_data):
+        os.mkdir(PATH_data)
     weightedEdges = [{'key': key, 'value': value} for key, value in halls.items()]
-    with open(prefix+"weigthedEdges.json", "w") as outfile:
+
+    with open(os.path.join(PATH_data, prefix+"weigthedEdges.json"), "w") as outfile:
         json.dump(weightedEdges, outfile)
 
     nodeToCoordinates = {vertex: {'Building': info["Building"], "Floor": info["Floor"], "x": np.real(info["Location"]),
                                   "y": np.imag(info["Location"])} for vertex, info in nodeToCoordinate.items()}
-    with open(prefix+"nodeToCoordinates.json", "w") as outfile:
+    with open(os.path.join(PATH_data, prefix+"nodeToCoordinates.json"), "w") as outfile:
         json.dump(nodeToCoordinates, outfile)
 
-    with open(prefix+"buildingScales.json", "w") as outfile:
+    with open(os.path.join(PATH_data, prefix+"buildingScales.json"), "w") as outfile:
         json.dump(scales, outfile)
 
     todraw=[]
@@ -500,7 +523,7 @@ def exportGraphinfo(halls, nodeToCoordinate, scales,trail, prefix=""):
         else:
             todraw.append({"key": edge, "value": halls[(edge[1],edge[0])]})
 
-    with open(prefix+"trail.json", "w") as outfile:
+    with open(os.path.join(PATH_data, prefix+"trail.json"), "w") as outfile:
         json.dump(todraw, outfile)
 
 def runModelends(logfolder, halls, neighbours,ends=[],nvdum=None, maxtime=None, maxgap=None, printtime=None, log=False, elevatorVertices=[]):
