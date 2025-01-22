@@ -43,7 +43,6 @@ if __name__ == "__main__":
 
     # For the longest trail through CI to CR 90 seconds per component
     figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
-
     existingvertices = set()
     for v0, v1 in hallways:
         existingvertices.add(v0)
@@ -56,20 +55,58 @@ if __name__ == "__main__":
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
                            maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
 
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
-                    prefix="CItoCRtestrun")
-
-    drawEdgesInFloorplans(edges=trail, nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
-                          specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
-                          resultfolder=PATH_result, prefixfilename='CItoCRtestrun')
-
-    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
-    visitedvertices=set()
-    for v0,v1 in trail:
+                    prefix="CItoCRtestrun3")
+    visitedvertices = set()
+    for v0, v1 in trail:
         visitedvertices.add(v0)
         visitedvertices.add(v1)
-    buildingsvisited= getBuildings(visitedvertices, nodeToCoordinate)
+    buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
     print(f"and goes through: {buildingsvisited}")
+    # Extract information back from the json for trail CI to CR
+    # PATHd = PATH + "\\dataruns\\log2025-01-22 17-41-44.log"
+    # PATH_data= os.path.join(PATHd,"CItoCRtestruntrail.json")
+    # PATH_lengths= os.path.join(PATHd,"CItoCRtestrunweigthedEdges.json")
+    # with open(PATH_lengths, 'r') as f:
+    #     halls = json.load(f)
+    # hallways=dict()
+    # for hall in halls:
+    #     hallways[(hall['key'][0],hall['key'][1])]= hall['value']
+    #
+    # with open(PATH_data, 'r') as f:
+    #     data = json.load(f)
+    # trail = []
+    # length = 0
+    # print(data)
+    # for hall in data:
+    #     edge=(hall['key'][0], hall['key'][1])
+    #     edgerev= (hall['key'][1], hall['key'][0])
+    #     trail.append((hall['key'][0], hall['key'][1]))
+    #     if edge in hallways:
+    #         length += hallways[(hall['key'][0], hall['key'][1])]
+    #     elif edgerev in hallways:
+    #         length += hallways[edgerev]
+    #     else:
+    #         print(f"LENGTH OF EDGE:{edge} unknown, since it is not in the hallways dict")
+
+    # print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
+    #     existingvertices = set()
+    #     for v0, v1 in hallways:
+    #         existingvertices.add(v0)
+    #         existingvertices.add(v1)
+    #     buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+    #
+    #     print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
+
+    # visitedvertices=set()
+    # for v0,v1 in trail:
+    #     visitedvertices.add(v0)
+    #     visitedvertices.add(v1)
+    # buildingsvisited= getBuildings(visitedvertices, nodeToCoordinate)
+    # print(f"and goes through: {buildingsvisited}")
+
+
 
 

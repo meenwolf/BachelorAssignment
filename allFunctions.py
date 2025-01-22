@@ -651,7 +651,7 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     # bridges = dict()
     potentialtwocuts = dict()
     for path, info in specialPaths.items():
-        if path[1] == "0" and path not in ['C01HBWA', 'C01CRWH', 'C02CRNL']:  # meaning that it is a bridge
+        if path[1] == "0" and path not in ['C01HBWA', 'C01WAHB','C01CRWH', 'C01WHCR','C02CRNL','C02NLCR','C01CRNL', 'C01NLCR','C01WACR', 'C01CRWA']:  # meaning that it is a bridge
             # print(f"specialPaths: {specialPaths}")
             # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
             # print(f"start: {specialPaths[path]['Start']}")
@@ -813,7 +813,13 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
         neighbours = getNeighbourhood(edges)
     neighboursnew, edgesnew,vdummy = addDummy(neighbours, edges, vdummy)
     if len(ends) in [0,1,2]:
-        print(f"run new model")
+        existingvertices = set()
+        for v0, v1 in edges:
+            existingvertices.add(v0)
+            existingvertices.add(v1)
+        buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+        print(f"WE WILL FIND A LONGEST TRAIL THROUGH BUILDINGS:{buildingsvisited}\n"
+              f"WITH {len(ends)} MANDATORY ENDS: {ends}")
         model, varshall, varsdegree = runModelends(ends=ends,logfolder=logfolder, halls=edgesnew, nvdum=vdummy,
                                                neighbours=neighboursnew,
                                                maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
@@ -865,7 +871,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
         neighbours= getNeighbourhood(edges.keys())
     bridges=dict()
     for path, info in specialPaths.items():
-        if path[1] == "0" and path not in ['C01NLZH','C01ZHNL','C01WHCR', 'C01CRWH']:  # meaning that it is a bridge
+        if path[1] == "0" and path not in ['C01HBWA', 'C01WAHB','C01CRWH', 'C01WHCR','C02CRNL','C02NLCR','C01CRNL', 'C01NLCR','C01WACR', 'C01CRWA']:  # meaning that it is a bridge
             # print(f"EdgeCutspecialPaths: {specialPaths}")
             # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
             # print(f"start: {specialPaths[path]['Start']}")
