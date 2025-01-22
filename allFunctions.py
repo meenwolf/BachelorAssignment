@@ -324,6 +324,7 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
     for i,edge in enumerate(edges):
         if edge in elevatorEdges:
             # We can not draw this line in a floor plan
+
             continue
         building0, floor0= getBuildingFloor(edge[0], nodeToCoordinate)
         building1, floor1= getBuildingFloor(edge[1], nodeToCoordinate)
