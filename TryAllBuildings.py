@@ -41,7 +41,7 @@ if __name__ == "__main__":
     #
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
-    # For the longest trail through CI to CR 90 seconds per component
+    # For the longest trail through CI to CR 90 and testing 270 seconds per component. They gave the same result
     figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
 
     existingvertices = set()
@@ -54,12 +54,12 @@ if __name__ == "__main__":
     trailsComponents=dict() # to save the longest found trail for a component in
     trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           maxtime=270, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
 
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
-                    prefix="CItoCR90secSaveComponents")
+                    prefix="CItoCR270sec")
     visitedvertices = set()
     for v0, v1 in trail:
         visitedvertices.add(v0)
