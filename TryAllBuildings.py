@@ -42,29 +42,16 @@ if __name__ == "__main__":
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
     # For the longest trail through CI to CR 90 seconds per component
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
-    existingvertices = set()
-    for v0, v1 in hallways:
-        existingvertices.add(v0)
-        existingvertices.add(v1)
-    buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+    # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
+    #
+    # trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+    #                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
+    #                        maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+    #                        # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    #
+    # exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
+    #                 prefix="CItoCRtestrun3")
 
-    print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
-
-    trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
-                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
-                           # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
-    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
-
-    exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
-                    prefix="CItoCRtestrun3")
-    visitedvertices = set()
-    for v0, v1 in trail:
-        visitedvertices.add(v0)
-        visitedvertices.add(v1)
-    buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
-    print(f"and goes through: {buildingsvisited}")
     # Extract information back from the json for trail CI to CR
     # PATHd = PATH + "\\dataruns\\log2025-01-22 17-41-44.log"
     # PATH_data= os.path.join(PATHd,"CItoCRtestruntrail.json")
@@ -92,6 +79,38 @@ if __name__ == "__main__":
     #         print(f"LENGTH OF EDGE:{edge} unknown, since it is not in the hallways dict")
 
     # print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
+
+
+    # Bounds on Ravelijn entire building running for the night
+    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","CITADEL","ZILVER","CARRE","WAAIER","NANO"], floorsToSkip=[])
+    existingvertices = set()
+    for v0, v1 in hallways:
+        existingvertices.add(v0)
+        existingvertices.add(v1)
+    buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+
+    print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
+
+    titleplot = "The bounds on the length of a longest trail in Ravelijn,<br> at each moment in time when running the gurobi solver for 8 hours."
+    boundplotname = f'RAnight{datenew}.html'
+
+    trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
+                           maxtime=28800, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
+
+    visitedvertices=set()
+    for v0,v1 in trail:
+        visitedvertices.add(v0)
+        visitedvertices.add(v1)
+    buildingsvisited= getBuildings(visitedvertices, nodeToCoordinate)
+    print(f"and goes through: {buildingsvisited}")
+
+    plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
+
+# Code for sanity check on new cases
+
     #     existingvertices = set()
     #     for v0, v1 in hallways:
     #         existingvertices.add(v0)
