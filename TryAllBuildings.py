@@ -42,16 +42,30 @@ if __name__ == "__main__":
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
     # For the longest trail through CI to CR 90 seconds per component
-    # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
-    #
-    # trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
-    #                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-    #                        maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
-    #                        # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
-    #
-    # exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
-    #                 prefix="CItoCRtestrun3")
+    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
 
+    existingvertices = set()
+    for v0, v1 in hallways:
+        existingvertices.add(v0)
+        existingvertices.add(v1)
+    buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+
+    print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
+    trailsComponents=dict() # to save the longest found trail for a component in
+    trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
+                           maxtime=90, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
+
+    exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
+                    prefix="CItoCR90secSaveComponents")
+    visitedvertices = set()
+    for v0, v1 in trail:
+        visitedvertices.add(v0)
+        visitedvertices.add(v1)
+    buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
+    print(f"and goes through: {buildingsvisited}")
     # Extract information back from the json for trail CI to CR
     # PATHd = PATH + "\\dataruns\\log2025-01-22 17-41-44.log"
     # PATH_data= os.path.join(PATHd,"CItoCRtestruntrail.json")
@@ -95,9 +109,9 @@ if __name__ == "__main__":
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
     # Code to check what the total length of all the hallways in CI, RA, ZI and CR is:
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["NANO","WAAIER","HORST"], floorsToSkip=[])
-    totalLength= sum(hallways.values())
-    print(f"total length of hallways in CI, RA, ZI, CR: {totalLength} meters")
+    # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["NANO","WAAIER","HORST"], floorsToSkip=[])
+    # totalLength= sum(hallways.values())
+    # print(f"total length of hallways in CI, RA, ZI, CR: {totalLength} meters")
 
 # Code for sanity check on new cases
 

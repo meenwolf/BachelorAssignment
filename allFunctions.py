@@ -683,17 +683,27 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     return False
 
 
-def getBuildings(vertices, nodeToCoordinate):
+def getBuildings(vertices, nodeToCoordinate, returnNonsinglePoints=False):
     buildings=dict()
+    nonsingleBuildingsfloors=dict()
     for vertex in vertices:
         if vertex in nodeToCoordinate: #meaning that the vertex is not representing an elevator.
             building= nodeToCoordinate[vertex]['Building']
             floor= nodeToCoordinate[vertex]['Floor']
             if building in buildings:
-                buildings[building].add(floor)
+                if floor in buildings[building]:
+                    if building in nonsingleBuildingsfloors:
+                        nonsingleBuildingsfloors[building].add(floor)
+                    else:
+                        nonsingleBuildingsfloors[building]={floor}
+                else:
+                    buildings[building].add(floor)
             else:
                 buildings[building] = {floor}
-    return buildings
+    if returnNonsinglePoints:
+        return nonsingleBuildingsfloors
+    else:
+        return buildings
 
 
 def getEdgesComponent(weightedEdges, vertices): # neighbourhood=None):
@@ -866,9 +876,16 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
 
     return trailresult, lengthtrail
 
-def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, nodeToCoordinate, vdummy,elevatorEdges=[], ends=[],neighbours=None,maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
+def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, nodeToCoordinate, vdummy,elevatorEdges=[], ends=[],neighbours=None,maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
     if neighbours ==None:
         neighbours= getNeighbourhood(edges.keys())
+
+    buildingscomponent = getBuildings(vertices=neighbours.keys(), nodeToCoordinate=nodeToCoordinate, returnNonsinglePoints=True)
+    componentkey=tuple(list(buildingscomponent.keys())+ends)
+    if componentkey in trailsComponents:
+        return trailsComponents[componentkey]['trail'], trailsComponents[componentkey]['length'], trailsComponents
+
+
     bridges=dict()
     for path, info in specialPaths.items():
         if path[1] == "0" and path not in ['C01HBWA', 'C01WAHB','C01CRWH', 'C01WHCR','C02CRNL','C02NLCR','C01CRNL', 'C01NLCR','C01WACR', 'C01CRWA']:  # meaning that it is a bridge
@@ -895,8 +912,8 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                                                     prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname,
                                                     showboundplot=showboundplot,
                                                     saveboundplotname=saveboundplotname)
-
-        return trailcomp, lengthtrail
+        trailsComponents[componentkey]={'trail': trailcomp, 'length': lengthtrail}
+        return trailcomp, lengthtrail, trailsComponents
 
 
     else: #meaning that there are 1 or 2 cuts
@@ -937,21 +954,21 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                 assert len(ends) in [0,1,2] # Since the only options are for a component to have a mandatory start, end, both or none
                 if len(ends)==0: #meaning no restrictions on where to start or end
                     print(f"in reduce Graph bridges, we are free to find a longest trail anywhere in this component with c0:nvertices:{len(c0)}nedges:{len(edgesC0)} and then c1:nvertices:{len(c1)} nedges:{len(edgesC1)}.In total {max(list(neighbours.keys()))+1} vertices and {len(edges)} edges")
-                    Tc0, LTc0= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder, specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
+                    Tc0, LTc0, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder, specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c0
                     print(f"length Tc0: {LTc0}")
-                    Tc1, LTc1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
+                    Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c1
                     print(f"length Tc1: {LTc1}")
                     # print(f"ends will be v0:{v0}")
-                    Tv0, LTv0= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
+                    Tv0, LTv0, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v0]) # longest trail in c0 that starts or ends in v0
                     print(f"length in c0 starting from v0: {LTv0}")
                     # print(f"ends will be v1:{v1}")
-                    Tv1, LTv1= reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
+                    Tv1, LTv1, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v1]) # longest trail in c1 that starts or ends in v1
                     print(f"length in c1 starting from v1: {LTv1}")
@@ -961,9 +978,11 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
 
                     T=max(LTc0,LTc0c1 ,LTc1)
                     if T == LTc0:
-                        return  Tc0, LTc0
+                        trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
+                        return  Tc0, LTc0, trailsComponents
                     elif T== LTc1:
-                        return Tc1, LTc1
+                        trailsComponents[componentkey] = {'trail': Tc1, 'length': LTc1}
+                        return Tc1, LTc1, trailsComponents
                     else:
                         # Construct the combined trail, starting in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1
                         # check the order of the edges in Tv0,
@@ -989,7 +1008,8 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             print(f"ERRORRR the vertex v1 is neither in the start nor end edge of the trail in Tv1??")
 
                         Tc0c1 = Tv0 + [(v0, v1)] + Tv1
-                        return Tc0c1, LTc0c1
+                        trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
+                        return Tc0c1, LTc0c1, trailsComponents
 
 
 
@@ -1020,7 +1040,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                         building1= tempbuilding
 
 
-                    Tc0, LTc0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
+                    Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                         elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
@@ -1028,7 +1048,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                                                         elevatorVertices=elevatorVertices,
                                                         ends=ends)  # longest trail in c1 that starts or ends in v1
                     # print(f"ends will be [ends[0],v0]:{[ends[0],v0]}")
-                    Tc0v0, LTc0v0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
+                    Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                         elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
@@ -1036,7 +1056,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                                                         elevatorVertices=elevatorVertices,
                                                         ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                     # print(f"ends will be v1:{v1}")
-                    Tv1, LTv1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
+                    Tv1, LTv1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
                                                         elevatorEdges=elevatorEdges, nodeToCoordinate=nodeToCoordinate,
@@ -1056,7 +1076,8 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                         else:
                             print(f"ERRORRR the vertex end0 is neither in the start nor end edge of the trail in Tc0??")
                         # check the order of the edges in Tv1,
-                        return Tc0, LTc0
+                        trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
+                        return Tc0, LTc0, trailsComponents
                     else:
 
                         # Construct the combined trail, starting in end[0] in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1
@@ -1079,14 +1100,15 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             print(f"ERRORRR the vertex v1 is neither in the start nor end edge of the trail in Tv1??")
 
                         Tc0c1 = Tc0v0 + [(v0,v1)] + Tv1
-                        return Tc0c1, LTc0c1
+                        trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
+                        return Tc0c1, LTc0c1, trailsComponents
                 else: #we have a mandatory start and a mandatory end, so two options, they either are in the same component or not
                     print(f"in reduce graph bridges we must find a trail that starts and ends in{ends}.")
 
                     if ends[0] in c0 and ends[1] in c0:
                         print(f"we only have to find a longest trail in c0 with ends {ends}")
                         # print(f"ends was:{ends} and will be the same: {ends}")
-                        Tc0, LTc0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
+                        Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                 specialEdges=specialEdges,
                                                                 figuresResultBuildings=figuresResultBuildings,
                                                                 elevatorEdges=elevatorEdges,
@@ -1100,11 +1122,12 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             Tc0.reverse()
                         else:
                             print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc0??")
-                        return Tc0, LTc0
+                        trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
+                        return Tc0, LTc0, trailsComponents
 
                     elif ends[0] in c1 and ends[1] in c1:
                         print(f"we only have to find a longest trail in c1 with ends {ends}")
-                        Tc1, LTc1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
+                        Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                             specialEdges=specialEdges,
                                                             figuresResultBuildings=figuresResultBuildings,
                                                             elevatorEdges=elevatorEdges,
@@ -1118,7 +1141,8 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             Tc1.reverse()
                         else:
                             print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc1??")
-                        return Tc1, LTc1
+                        trailsComponents[componentkey] = {'trail': Tc1, 'length': LTc1}
+                        return Tc1, LTc1, trailsComponents
                     else:
                         print(f"They are in a different component, so we must find a trail from ends[0] to v0 to v1 to ends[0], if ends[0] in c0")
                         if ends[0] in c0:  # meaning we take the longest trail in c0 starting at ends[0] to anywhere in c0
@@ -1144,7 +1168,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             building1 = tempbuilding
                         #Now find a longest trail in co from ends0 to v0 and a longest trail in c1 from v1 to ends1
                         # print(f"ends will be: [ends[0],v0]: {[ends[0],v0]}")
-                        Tc0v0, LTc0v0 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
+                        Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                 specialEdges=specialEdges,
                                                                 figuresResultBuildings=figuresResultBuildings,
                                                                 elevatorEdges=elevatorEdges,
@@ -1153,7 +1177,7 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                                                                 elevatorVertices=elevatorVertices,
                                                                 ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                         # print(f"ends will be: [v1,ends[1]]: {[v1,ends[1]]}")
-                        Tc1v1, LTc1v1 = reduceGraphBridges(logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
+                        Tc1v1, LTc1v1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                                 specialEdges=specialEdges,
                                                                 figuresResultBuildings=figuresResultBuildings,
                                                                 elevatorEdges=elevatorEdges,
@@ -1182,7 +1206,8 @@ def reduceGraphBridges(specialPaths, logfolder, resultfolder, edges, specialEdge
                             print(f"ERRORRR the vertex ends1 is neither in the start nor end edge of the trail in Tc1v1??")
 
                         Tc0c1 = Tc0v0 + [(v0, v1)] + Tc1v1
-                        return Tc0c1, LTc0c1
+                        trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
+                        return Tc0c1, LTc0c1, trailsComponents
 
     # elif True:
     #     print(f"reduce graph bridges found no cut edge, so we have to just call findtrail component")
