@@ -497,10 +497,13 @@ def plotBounds(logfolder, logfile, title, savename=False):
 
 
 def exportGraphinfo(Path, halls, nodeToCoordinate, scales,trail, prefix=""):
-    PATHd = Path + "\\dataruns"
-    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    datenew = date.replace(':', '-')
-    PATH_data = PATHd+f"\\log" + datenew + ".log"
+    if scales:
+        PATHd = Path + "\\dataruns"
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        datenew = date.replace(':', '-')
+        PATH_data = PATHd+f"\\log" + datenew + ".log"
+    else:
+        PATH_data=Path+"visualizeWeirdCases"
 
     if not os.path.exists(PATH_data):
         os.mkdir(PATH_data)
@@ -514,8 +517,9 @@ def exportGraphinfo(Path, halls, nodeToCoordinate, scales,trail, prefix=""):
     with open(os.path.join(PATH_data, prefix+"nodeToCoordinates.json"), "w") as outfile:
         json.dump(nodeToCoordinates, outfile)
 
-    with open(os.path.join(PATH_data, prefix+"buildingScales.json"), "w") as outfile:
-        json.dump(scales, outfile)
+    if scales:
+        with open(os.path.join(PATH_data, prefix+"buildingScales.json"), "w") as outfile:
+            json.dump(scales, outfile)
 
     todraw=[]
     for edge in trail:
@@ -643,30 +647,42 @@ def isTwoCut(node_neighbors, edge1, edge2, getComponent=False):
             return False
 
 
-def findCuts(edges, specialPaths, neighbourhood=None):
+def findCuts(edges, specialPaths, neighbourhood=None, inBuildings=[]):
     onecuts = dict()
     twocuts = dict(dict())
+    inBN= getBNfromBuildingName(inBuildings)
     if neighbourhood ==None:
         neighbourhood = getNeighbourhood(edges)
     # bridges = dict()
     potentialtwocuts = dict()
     for path, info in specialPaths.items():
-        if path[1] == "0" and path not in ['C01HBWA', 'C01WAHB','C01CRWH', 'C01WHCR','C02CRNL','C02NLCR','C01CRNL', 'C01NLCR','C01WACR', 'C01CRWA']:  # meaning that it is a bridge
-            # print(f"specialPaths: {specialPaths}")
-            # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
-            # print(f"start: {specialPaths[path]['Start']}")
-            # print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
+        if path[1] == "0":  # meaning that it is a bridge
+            # print(f"path:{path},")
+            b1 = path[3:5]
+            b2 = path[5:7]
+            # print(f"path:{path}, b1:{b1}, b2:{b2}, inBN:{inBN}")
 
+            # print(f"constructed list: {[b1 in inBN, b2 in inBN]} and all in in buildings:{all([b1 in inBN, b2 in inBN])}")
+            if all([b1 in inBN, b2 in inBN]):
+                pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
+                pathedgeswap=(pathedge[1],pathedge[0])
+                # print(f"pathedge:{pathedge} for path:{path}")
+                if pathedge in edges: # meaning that this bridge is indeed in the component we are looking for
+                    edgecheckcut= pathedge
+                else:
+                    edgecheckcut = pathedgeswap
 
-            pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
-            if pathedge in edges: # meaning that this bridge is indeed in the component we are looking for
-                cutedge, component1, component2 = isCutEdge(neighbourhood, pathedge, getComponent=True)
+                cutedge, component1, component2 = isCutEdge(neighbourhood, edgecheckcut, getComponent=True)
+                # print(f"cutedge:{cutedge}")
                 if cutedge:
-                    onecuts[pathedge] = {'Name': path, 'Component1vertices': component1, 'Component2vertices': component2}
+                    onecuts[edgecheckcut] = {'Name': path, 'Component1vertices': component1, 'Component2vertices': component2}
                     return onecuts
-                else:  # check for each other combination if it forms a 2 cut.
-                    potentialtwocuts[pathedge] = path
-
+                elif 'WH' in path:  # check for each other combination if it forms a 2 cut.
+                    potentialtwocuts[edgecheckcut] = path
+                elif 'ZH' in path:
+                    potentialtwocuts[edgecheckcut] = path
+                # elif "WA" in path:
+                #     potentialtwocuts[edgecheckcut] = path
 
     # for bridge, name in bridges.items():
     #     cutedge, component1, component2 = isCutEdge(neighbourhood, bridge, getComponent=True)
@@ -675,12 +691,15 @@ def findCuts(edges, specialPaths, neighbourhood=None):
     #     else:  # check for each other combination if it forms a 2 cut.
     #         potentialtwocuts[bridge]=name
 
-    for path1, path2 in combinations(potentialtwocuts.keys(), 2):
-        twocut, component1, component2 = isTwoCut(neighbourhood, path1, path2, getComponent=True)
-        if twocut:
-            twocuts[(path1,path2)] = {'Name':potentialtwocuts[path1]+'and'+potentialtwocuts[path2] ,'Component1vertices': component1, 'Component2vertices': component2}
-            return twocuts
-    return False
+    if len(potentialtwocuts.keys()) > 1:
+        print(f"potential twocuts{potentialtwocuts.keys()}")
+        for path1, path2 in combinations(potentialtwocuts.keys(), 2):
+            twocut, component1, component2 = isTwoCut(neighbourhood, path1, path2, getComponent=True)
+            if twocut:
+                print(f"we found twocut:{twocut}")
+                twocuts[(path1,path2)] = {'Name':potentialtwocuts[path1]+'and'+potentialtwocuts[path2] ,'Component1vertices': component1, 'Component2vertices': component2}
+                return twocuts
+        return False
 
 
 def getBuildings(vertices, nodeToCoordinate, returnNonsinglePoints=False):
@@ -746,7 +765,7 @@ def constructTrailCheckComponents(edgeswithdum,vdum):
     #     if edge in edges:
     #         edges.remove(edge)
 
-    print(node_neighbors)
+    # print(node_neighbors)
     currentNode=False
     for node, neighbs in node_neighbors.items():
         neighbs= list(neighbs)
@@ -827,9 +846,14 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
         for v0, v1 in edges:
             existingvertices.add(v0)
             existingvertices.add(v1)
-        buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+        buildingsvisited = getBuildings(existingvertices, nodeToCoordinate, returnNonsinglePoints=True)
         print(f"WE WILL FIND A LONGEST TRAIL THROUGH BUILDINGS:{buildingsvisited}\n"
               f"WITH {len(ends)} MANDATORY ENDS: {ends}")
+        for end in ends:
+            if end in nodeToCoordinate:
+                print(f"end{end}: {nodeToCoordinate[end]}")
+            else:
+                print(f"end {end} not in node to coordinate")
         model, varshall, varsdegree = runModelends(ends=ends,logfolder=logfolder, halls=edgesnew, nvdum=vdummy,
                                                neighbours=neighboursnew,
                                                maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
@@ -876,30 +900,49 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
 
     return trailresult, lengthtrail
 
+def getBNfromBuildingName(listofbuildings):
+    listofbuildings=[building.split()[0] for building in listofbuildings]
+    abbreviations=[]
+    if 'CITADEL' in listofbuildings:
+        abbreviations.append('CI')
+    if 'RAVELIJN' in listofbuildings:
+        abbreviations.append('RA')
+    if 'ZILVERLING' in listofbuildings:
+        abbreviations.append('ZI')
+    if 'CARRE' in listofbuildings:
+        abbreviations.extend(['CR', 'HB'])
+    if 'WAAIER' in listofbuildings:
+        abbreviations.append('WA')
+    if 'NANOLAB' in listofbuildings:
+        abbreviations.append('NL')
+    if 'HORSTCOMPLEX' in listofbuildings or 'HORST' in listofbuildings:
+        abbreviations.extend(['NH','HN','WH','HC','OH','HZ','ME', 'HW','ZH','BH'])
+    return abbreviations
+
+def swapTrailIfNeeded(start, trail):
+    if start in trail[0]:
+        print(f"the edges are in the correct order")
+        # Tc0 = edgesTc0
+    elif start in trail[-1]:
+        # Reverse the order of the list
+        trail.reverse()
+    else:
+        print(f"ERRORRR the vertex end0 is neither in the start nor end edge of the trail in Tc0??")
+
+    return trail
+
 def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, edges, specialEdges, figuresResultBuildings, nodeToCoordinate, vdummy,elevatorEdges=[], ends=[],neighbours=None,maxtime=None, maxgap=None, printtime=None, logfile=False, elevatorVertices=[],prefixdrawcomp=False, plotboundsname=False, showboundplot=False, saveboundplotname=False):
     if neighbours ==None:
         neighbours= getNeighbourhood(edges.keys())
 
     buildingscomponent = getBuildings(vertices=neighbours.keys(), nodeToCoordinate=nodeToCoordinate, returnNonsinglePoints=True)
-    componentkey=tuple(list(buildingscomponent.keys())+ends)
+    componentkey= tuple(sorted(list(set([(min(edge), max(edge)) for edge in edges if vdummy not in edge])))+ sorted(ends))
     if componentkey in trailsComponents:
+        print(f"YES trailscomponents with {len(list(trailsComponents.keys()))} keys,\n has componentkey for {len(edges)} edges in {buildingscomponent}")
         return trailsComponents[componentkey]['trail'], trailsComponents[componentkey]['length'], trailsComponents
-
-
-    bridges=dict()
-    for path, info in specialPaths.items():
-        if path[1] == "0" and path not in ['C01HBWA', 'C01WAHB','C01CRWH', 'C01WHCR','C02CRNL','C02NLCR','C01CRNL', 'C01NLCR','C01WACR', 'C01CRWA']:  # meaning that it is a bridge
-            # print(f"EdgeCutspecialPaths: {specialPaths}")
-            # print(f"path is of type {type(specialPaths[path])}: {specialPaths[path]}")
-            # print(f"start: {specialPaths[path]['Start']}")
-            # print(f"vnum: {specialPaths[path]['Start']['Vnum']}")
-
-            pathedge = (specialPaths[path]['Start']['Vnum'], specialPaths[path]['End']['Vnum'])
-
-
-            bridges[pathedge] = path
-    cutMade = findCuts(edges=edges.keys(), specialPaths=specialPaths, neighbourhood=neighbours)
-    # onecuts=[]
+    else:
+        print(f"NO trailscomponents with {len(list(trailsComponents.keys()))} keys,\n does not have componentkey for {len(edges)} edges in {buildingscomponent}")
+    cutMade = findCuts(edges=edges.keys(), specialPaths=specialPaths, neighbourhood=neighbours, inBuildings=list(buildingscomponent.keys()))
     if not cutMade:
         print(f"reduce graph bridges found no 1 or 2 edgecut, so we have to just call findtrail component")
         trailcomp, lengthtrail = findTrailComponent(ends=ends, logfolder=logfolder, resultfolder=resultfolder,
@@ -920,29 +963,606 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
         print(f"reduceGraphbridges found a cut edge so lets branch off to the correct version, we now have {len(edges)} edges in our component!")
         for cut, info in cutMade.items():
             if 'and' in info['Name']:
-                print(f"We have a 2 cut")
+                print(f"We have a 2 cut with edges:{cut} and info:{info}.")
+                for end in ends:
+                    if end in nodeToCoordinate:
+                        print(f"We have mandatory end {end}:{nodeToCoordinate[end]}")
+                    else:
+                        print(f"We have mandatory end{end} that is not in node to coordinate")
+
+                if len(ends)>0:
+                    vinc0=ends[0]
+                else:
+                    vinc0= cut[0][0]
+
+                if vinc0 in info['Component1vertices']:
+                    v0 = cut[0][0]
+                    v1 = cut[0][1]
+                    c0 = info['Component1vertices']
+                    c1 = info['Component2vertices']
+                    print(f"vinc0:{vinc0} also in v1?: {vinc0 in c1}")
+                    if cut[1][0] in c0:
+                        u0= cut[1][0]
+                        u1=cut[1][1]
+                    else:
+                        u0=cut[1][1]
+                        u1=cut[1][0]
+                else:
+                    v1 = cut[0][0]
+                    v0 = cut[0][1]
+                    c1 = info['Component1vertices']
+                    c0 = info['Component2vertices']
+                    if cut[1][0] in c0:
+                        u0= cut[1][0]
+                        u1=cut[1][1]
+                    else:
+                        u0=cut[1][1]
+                        u1=cut[1][0]
+
+                print(
+                    f"sanity check: v0 in c0:{v0 in c0}, u0 in c0:{u0 in c0}, v1 in c1:{v1 in c1}, u1 in c1:{u1 in c1}\n"
+                    f"v0 in c1:{v0 in c1}, u0 in c1:{u0 in c1}, v1 in c0:{v1 in c0}, u1 in c0:{u1 in c0}")
+                for end in ends:
+                    print(f"sanity check on end {end} in c0: {end in c0}, and in c1?:{end in c1}")
+                buildings0 = getBuildings(c0, nodeToCoordinate)
+                buildings1 = getBuildings(c1, nodeToCoordinate)
+                edgesC0 = getEdgesComponent(edges, c0)  # weighted edges
+                edgesC1 = getEdgesComponent(edges, c1)  # weighted edges
+
+                print(
+                    f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
+
+                assert len(ends) in [0, 1, 2]  # Since the only options are for a component to have a mandatory start, end, both or none
+                if len(ends) == 2:
+                    print(f"we have to start in {[ends[0]]} and end in {[ends[1]]}")
+                    if ends[1] in c0:
+                        print(f"we only have to find a longest trail in c0 with ends {ends}, or going through both components by visiting either{cut[0]} or{cut[1]} first")
+                        # Find a longest trail only through c0
+                        print(f"2-cut 2 ends in c0, not visiting c1. Now redgb is called on c0:{buildings0}, and ends:{ends}")
+                        Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
+
+                        # Find a longest trail from one end over v0v1, in c1, taking u1u0, and then ending in the other end. The order does not matter
+                        # We connect v0 and u0 with an edge of a weight that is the sum of all the eges in c0. Then finding a longest trail that may start
+                        # and end anywhere. That edge is guaranteed to be in the solution, deleting that edge afterwards, gives the longest 2 trails
+                        # that can be walked from v0 and u0, that do not use the same hallways.
+                        edgesC0[(v0,u0)]= sum(list(edgesC0.values()))
+                        print(f"2-cut 2 ends in same component, visit c1, part in c0.Now redgb is called on c0:{buildings0}, and ends:{ends}")
+                        Tv0u0, LTv0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)
+
+                        print(f"2-cut 2 ends in same component, visit c1, part in c1. Now redgb is called on c1:{buildings1}, and ends:{[v1,u1]}")
+                        Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[v1,u1])
+                        LTc0c1= LTv0u0-edgesC0[(v0,u0)]+LTc1+ edges[cut[0]]+edges[cut[1]]
+                        if LTc0> LTc0c1:
+                            Tc0 = swapTrailIfNeeded(ends[0], Tc0)
+                            trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
+                            return Tc0, LTc0, trailsComponents
+                        else:
+                            if ((v0,u0)) in Tv0u0:
+                                pos= Tv0u0.index((v0,u0))
+                            else:
+                                pos=Tv0u0.index((u0,v0))
+                            T0= Tv0u0[0:pos]
+                            T1=Tv0u0[pos+1:]
+                            Tc0c1=[]
+                            if T0[-1][1]==v0:
+                                Tc0c1.extend(T0)
+                                Tc0c1.append((v0,v1))
+                                Tc1=swapTrailIfNeeded(v1, Tc1)
+                                Tc0c1.extend(Tc1)
+                                Tc0c1.append((u1,u0))
+                                Tc0c1.extend(T1)
+
+                            else:
+                                Tc0c1.extend(T0)
+                                Tc0c1.append((u0, u1))
+                                Tc1 = swapTrailIfNeeded(u1, Tc1)
+                                Tc0c1.extend(Tc1)
+                                Tc0c1.append((v1, v0))
+                                Tc0c1.extend(T1)
+                            trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
+                            return Tc0c1, LTc0c1, trailsComponents
+
+                    else:
+                        print(f"The ends lie in different components, so we must find a trail from ends[0] to v0 to v1 to ends[1]")
+                        # We can either take v0v1 or u0u1.
+                        # first case: we take v0v1:
+                        print(f"2-cut ends in diff comp, part for c0 to v0. Now redgb is called on c0:{buildings0}, and ends:{[ends[0], v0]}")
+
+                        Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder,
+                                                                             resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC0,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[ends[0], v0])
+                        print(f" 2-cut 2 ends in diff comp, part c1 from v1. Now redgb is called on c1:{buildings1}, and ends:{[v1, ends[1]]}")
+                        Tc1v1, LTc1v1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder,
+                                                                             resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC1,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[v1, ends[
+                                                                                 1]])
+                        LTv = LTc0v0 + edges[cut[0]] + LTc1v1
+
+                        # Second case, we take u0u1:
+                        print(f"2-cut ends in diff comp. part c0 to u0. Now redgb is called on c0:{buildings0}, and ends:{[ends[0],
+                                                                                   u0]}")
+                        Tc0u0, LTc0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder,
+                                                                             resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC0,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[ends[0],
+                                                                                   u0])
+                        print(f"2-cuts ends in diff comp, part c1 from u1. Now redgb is called on c1:{buildings1}, and ends:{[u1, ends[1]]}")
+                        Tc1u1, LTc1u1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder,
+                                                                             resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC1,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[u1, ends[
+                                                                                 1]])
+                        LTu = LTc0u0 + edges[cut[1]] + LTc1u1
+
+                        if LTv>LTu:
+                            Tv=swapTrailIfNeeded(ends[0], Tc0v0)
+                            Tv.append((v0,v1))
+                            Tc1v1=swapTrailIfNeeded(v1, Tc1v1)
+                            Tv.extend(Tc1v1)
+                            trailsComponents[componentkey] = {'trail': Tv, 'length': LTv}
+                            return Tv, LTv, trailsComponents
+                        else:
+                            Tu = swapTrailIfNeeded(ends[0], Tc0u0)
+                            Tu.append((u0, u1))
+                            Tc1u1 = swapTrailIfNeeded(u1, Tc1u1)
+                            Tu.extend(Tc1u1)
+                            trailsComponents[componentkey] = {'trail': Tu, 'length': LTu}
+                            return Tu, LTu, trailsComponents
+
+                        # Construct the combined trail, starting in ends[0] in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1 to ends1
+                        # check the order of the edges in Tv0,
+                        Tc0v0 = swapTrailIfNeeded(ends[0], Tc0v0)
+
+                        # check the order of the edges in Tv1,
+                        Tc1v1 = swapTrailIfNeeded(v1, Tc1v1)
+
+                        Tc0c1 = Tc0v0 + [(v0, v1)] + Tc1v1
+                        trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
+                        return Tc0c1, LTc0c1, trailsComponents
+
+                elif len(ends)==1:
+                    # We have one mandatory starting vertex, that lies in c0. So we either:
+                    # Stay in c0
+                    # go to c1 via v0v1
+                    # go to c1 via u0u1
+                    # through both c0 and c1 using both bridges
+
+                    # if we stay in c0:
+                    print(f"2-cut 1 end in c0, staying in c0. Now redgb is called on c0:{buildings0}, and ends:{ends}")
+                    Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                     logfolder=logfolder, resultfolder=resultfolder,
+                                                                     specialPaths=specialPaths, edges=edgesC0,
+                                                                     specialEdges=specialEdges,
+                                                                     figuresResultBuildings=figuresResultBuildings,
+                                                                     elevatorEdges=elevatorEdges,
+                                                                     nodeToCoordinate=nodeToCoordinate,
+                                                                     vdummy=vdummy,
+                                                                     maxtime=maxtime, maxgap=None, printtime=5,
+                                                                     elevatorVertices=elevatorVertices,
+                                                                     ends=ends)
+                    # if we take v0v1
+                    print(f"2-cut 1end in c0, taking v0v1. part c0v0. Now redgb is called on c0:{buildings0}, and ends:{[ends[0], v0]}")
+                    Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder,
+                                                                         resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[ends[0],
+                                                                               v0])
+                    print(f"2-cut 1 end in c0, taking v, part c1v1. Now redgb is called on c1:{buildings1}, and ends:{[v1]}")
+
+                    Tc1v1, LTc1v1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder,
+                                                                         resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[v1])
+                    LTv = LTc0v0 + edges[cut[0]] + LTc1v1
+
+                    # If we take u0u1:
+                    print(f"2-cut 1 end in c0, taking u, c0u0. Now redgb is called on c0:{buildings0}, and ends:{[ends[0], u0]}")
+                    Tc0u0, LTc0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder,
+                                                                         resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[ends[0],
+                                                                               u0])
+                    print(f"2-cut 1 end in c0, taking u, c1u1. Now redgb is called on c1:{buildings1}, and ends:{[u1]}")
+                    Tc1u1, LTc1u1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder,
+                                                                         resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[u1])
+                    LTu = LTc0u0 + edges[cut[1]] + LTc1u1
+
+                    # We take both v0v1 and u0u1:
+                    edgesC0[(v0, u0)] = sum(list(edgesC0.values()))
+                    print(f"2-cut 1 end in c0, taking u and v, part in c0. (u0v0). Now redgb is called on c0:{buildings0}, and ends:{ends}")
+                    Tv0u0, LTv0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)
+
+                    print(f"2-cut 1 end in c0, taking u and v, part c1. Now redgb is called on c1:{buildings1}, and ends:{v1} and {u1}")
+                    Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                     logfolder=logfolder, resultfolder=resultfolder,
+                                                                     specialPaths=specialPaths, edges=edgesC1,
+                                                                     specialEdges=specialEdges,
+                                                                     figuresResultBuildings=figuresResultBuildings,
+                                                                     elevatorEdges=elevatorEdges,
+                                                                     nodeToCoordinate=nodeToCoordinate,
+                                                                     vdummy=vdummy,
+                                                                     maxtime=maxtime, maxgap=None, printtime=5,
+                                                                     elevatorVertices=elevatorVertices,
+                                                                     ends=[v1, u1])
+                    LTuv = LTv0u0 - edgesC0[(v0, u0)] + LTc1 + edges[cut[0]] + edges[cut[1]]
+
+                    LT= max(LTc0, LTv, LTu, LTuv)
+                    if LT == LTc0:
+                        T=LTc0
+                    elif LT == LTv:
+                        T=swapTrailIfNeeded(ends[0], Tc0v0)
+                        T.append((v0,v1))
+                        T.extend(swapTrailIfNeeded(v1, Tc1v1))
+                    elif LT == LTu:
+                        T = swapTrailIfNeeded(ends[0], Tc0u0)
+                        T.append((u0, u1))
+                        T.extend(swapTrailIfNeeded(u1, Tc1u1))
+                    else:
+                        if ((v0, u0)) in Tv0u0:
+                            pos = Tv0u0.index((v0, u0))
+                        else:
+                            pos = Tv0u0.index((u0, v0))
+                        T = Tv0u0[0:pos]
+                        T1 = Tv0u0[pos + 1:]
+                        if T[-1][1] == v0:
+                            T.append((v0, v1))
+                            Tc1 = swapTrailIfNeeded(v1, Tc1)
+                            T.extend(Tc1)
+                            T.append((u1, u0))
+                            T.extend(T1)
+                        else:
+                            T.append((u0, u1))
+                            Tc1 = swapTrailIfNeeded(u1, Tc1)
+                            T.extend(Tc1)
+                            T.append((v1, v0))
+                            T.extend(T1)
+                    trailsComponents[componentkey] = {'trail': T, 'length': LT}
+                    return T, LT, trailsComponents
+
+                else: # the length of mandatory ends is 0 so we are free to start whereever.We can either have a longest trail in
+                    # c0
+                    # c1
+                    # c0 to c1 over v0v1
+                    # c0 to c1 over u0u1
+                    # c0 to c1 to c0 using both bridges
+                    #c1 to c0 to c1 using both bridges
+
+                    #first case: longest trail in c0:
+                    print(f"2-cut 0 ends, staying in c0. Now redgb is called on c0:{buildings0}, and ends:{ends}")
+                    Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)
+                        # second case: longest trail in c1:
+                    print(f"2-cut 0 ends staying in c1. Now redgb is called on c1:{buildings1}, and ends:{ends}")
+                    Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)
+
+                        # third case: only using v0v1:
+                    print(f"2-cut 0 ends, taking v, part c0v0. Now redgb is called on c0:{buildings0}, and ends:{[v0]}")
+                    Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[v0])
+                    print(f"2-cut 0 ends, taking v, part c1v1. Now redgb is called on c1:{buildings1}, and ends:{[v1]}")
+                    Tc1v1, LTc1v1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[v1])
+                    LTv= LTc0v0+LTc1v1+edges[cut[0]]
+
+                    # Fourth case: only using u0u1
+                    print(f"2-cut 0 ends, taking u, part c0u0. Now redgb is called on c0:{buildings0}, and ends:{[u0]}")
+                    Tc0u0, LTc0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC0,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                             ends=[u0])
+
+                    print(f"2-cut 0 ends, taking u, part c1u1. Now redgb is called on c1:{buildings1}, and ends:{[u1]}")
+                    Tc1u1, LTc1u1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder, resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC1,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[u1])
+                    LTu = LTc0u0 + LTc1u1 + edges[cut[1]]
+
+                    # Fifth case, using both bridges, starting in C0
+                    edgesC0[(v0, u0)] = sum(list(edgesC0.values()))
+                    print(f"2-cut no ends, taking both u and v starting in c0. part c0. Now redgb is called on c0:{buildings0}, and ends:{[]}")
+
+                    Tv0u0, LTv0u0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                             logfolder=logfolder, resultfolder=resultfolder,
+                                                                             specialPaths=specialPaths, edges=edgesC0,
+                                                                             specialEdges=specialEdges,
+                                                                             figuresResultBuildings=figuresResultBuildings,
+                                                                             elevatorEdges=elevatorEdges,
+                                                                             nodeToCoordinate=nodeToCoordinate,
+                                                                             vdummy=vdummy,
+                                                                             maxtime=maxtime, maxgap=None, printtime=5,
+                                                                             elevatorVertices=elevatorVertices,
+                                                                             ends=[])
+                    print(f"2-cut 0ends, taking u and v, starting in c0. part c1. Now redgb is called on c1:{buildings1}, and ends:{[v1,u1]}")
+
+                    Tc1uv, LTc1uv, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=[v1, u1])
+                    LTc0c1c0 = LTv0u0 - edgesC0[(v0, u0)] + LTc1uv + edges[cut[0]] + edges[cut[1]]
+
+                    # sixth case, using both bridges, starting in C1
+                    edgesC1[(v1, u1)] = sum(list(edgesC1.values()))
+                    print(f"2-cut 0 ends taking u and v, starting in c1. part c1Now redgb is called on c1:{buildings0}, and ends:{ends}")
+                    Tv1u1, LTv1u1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                         logfolder=logfolder, resultfolder=resultfolder,
+                                                                         specialPaths=specialPaths, edges=edgesC1,
+                                                                         specialEdges=specialEdges,
+                                                                         figuresResultBuildings=figuresResultBuildings,
+                                                                         elevatorEdges=elevatorEdges,
+                                                                         nodeToCoordinate=nodeToCoordinate,
+                                                                         vdummy=vdummy,
+                                                                         maxtime=maxtime, maxgap=None, printtime=5,
+                                                                         elevatorVertices=elevatorVertices,
+                                                                         ends=ends)
+                    print(f"2-cut 0 ends taking u and v, starting in c1. part c0. Now redgb is called on c0:{buildings0}, and ends:{[v0,u0]}")
+                    Tc0uv, LTc0uv, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents,
+                                                                     logfolder=logfolder, resultfolder=resultfolder,
+                                                                     specialPaths=specialPaths, edges=edgesC0,
+                                                                     specialEdges=specialEdges,
+                                                                     figuresResultBuildings=figuresResultBuildings,
+                                                                     elevatorEdges=elevatorEdges,
+                                                                     nodeToCoordinate=nodeToCoordinate,
+                                                                     vdummy=vdummy,
+                                                                     maxtime=maxtime, maxgap=None, printtime=5,
+                                                                     elevatorVertices=elevatorVertices,
+                                                                     ends=[v0,u0])
+
+                    LTc1c0c1 = LTv1u1 - edgesC1[(v1, u1)] + LTc0uv + edges[cut[0]] + edges[cut[1]]
+
+                    LT= max(LTc0, LTc1, LTv, LTu, LTc0c1c0, LTc1c0c1)
+                    if LT == LTc0:
+                        T=Tc0
+                    elif LT == LTc1:
+                        T=Tc1
+                    elif LT== LTv:
+                        T=swapTrailIfNeeded(v0, Tc0v0)
+                        T.reverse()
+                        T.append((v0,v1))
+                        T.extend(swapTrailIfNeeded(v1, Tc1v1))
+                    elif LT == LTu:
+                        T = swapTrailIfNeeded(u0, Tc0u0)
+                        T.reverse()
+                        T.append((u0, u1))
+                        T.extend(swapTrailIfNeeded(u1, Tc1u1))
+                    elif LT== LTc0c1c0:
+                        if ((v0, u0)) in Tv0u0:
+                            pos = Tv0u0.index((v0, u0))
+                        else:
+                            pos = Tv0u0.index((u0, v0))
+                        T = Tv0u0[0:pos]
+                        T1 = Tv0u0[pos + 1:]
+                        if T[-1][1] == v0:
+                            T.append((v0, v1))
+                            Tc1uv = swapTrailIfNeeded(v1, Tc1uv)
+                            T.extend(Tc1uv)
+                            T.append((u1, u0))
+                            T.extend(T1)
+                        else:
+                            T.append((u0, u1))
+                            Tc1uv = swapTrailIfNeeded(u1, Tc1uv)
+                            T.extend(Tc1uv)
+                            T.append((v1, v0))
+                            T.extend(T1)
+
+                    else:
+                        if ((v1, u1)) in Tv1u1:
+                            pos = Tv1u1.index((v1, u1))
+                        else:
+                            pos = Tv1u1.index((u1, v1))
+                        T = Tv1u1[0:pos]
+                        T1 = Tv1u1[pos + 1:]
+                        if T[-1][1] == v1:
+                            T.append((v1, v0))
+                            Tc0uv = swapTrailIfNeeded(v0, Tc0uv)
+                            T.extend(Tc0uv)
+                            T.append((u0, u1))
+                            T.extend(T1)
+                        else:
+                            T.append((u0, u1))
+                            Tc0uv = swapTrailIfNeeded(u1, Tc0uv)
+                            T.extend(Tc0uv)
+                            T.append((v0, v1))
+                            T.extend(T1)
+                    trailsComponents[componentkey] = {'trail': T, 'length': LT}
+                    return T, LT, trailsComponents
+
             else:
                 print(f"We have a 1 cut")
-                print(f"one cuts are: {cutMade}\n with keys: {cutMade.keys()}")
-                #just take the first onecut and repeat the process.
-                # print(f"onecutedge:{cut} with: {nodeToCoordinate[cut[0]]} and \n {nodeToCoordinate[cut[1]]}")
-                # print(f"onecutinfo: {info}")
-                # print(f"neighbourhood of the cut edge:{neighbours[cut[0]]} and {neighbours[cut[1]]}")
-                # # Sort the components left after removing one 1cut such that the buildings and component of onecut[0] are in c0 and building0
-                # and the ones of onecut[1] are in c1 and building 1.
-                v0= cut[0]
-                v1= cut[1]
-                if v0 in info['Component1vertices']:
-                    c0= info['Component1vertices']
-                    c1= info['Component2vertices']
+                print(f"1-edge cut is: {cutMade}\n with keys: {cutMade.keys()}")
+                if len(ends)>0:
+                    vinc0=ends[0]
                 else:
-                    c0 = info['Component2vertices']
-                    c1 = info['Component1vertices']
+                    vinc0= cut[0]
 
-                building0 = nodeToCoordinate[v0]['Building']
-                building1 = nodeToCoordinate[v1]['Building']
-                edgesC0= getEdgesComponent(edges, c0) #weighted edges
-                edgesC1= getEdgesComponent(edges, c1) #weighted edges
+                if vinc0 in info['Component1vertices']:
+                    v0= cut[0]
+                    v1 = cut[1]
+                    c0 = info['Component1vertices']
+                    c1 = info['Component2vertices']
+                else:
+                    v1 = cut[0]
+                    v0 = cut[1]
+                    c1 = info['Component1vertices']
+                    c0 = info['Component2vertices']
+
+                print(
+                    f"sanity check: v0 in c0:{v0 in c0},  v1 in c1:{v1 in c1},\n"
+                    f"v0 in c1:{v0 in c1}, v1 in c0:{v1 in c0}")
+                for end in ends:
+                    print(f"sanity check on end {end} in c0: {end in c0}, and in c1?:{end in c1}")
+                buildings0 = getBuildings(c0, nodeToCoordinate)
+                buildings1 = getBuildings(c1, nodeToCoordinate)
+                edgesC0 = getEdgesComponent(edges, c0)  # weighted edges
+                edgesC1 = getEdgesComponent(edges, c1)  # weighted edges
+                if buildings1 =={'NANOLAB 1411': {'2'}, 'ZILVERLING 1313': {'4', '3', '5', '2', '1'}}:
+                    exportGraphinfo(Path=resultfolder, halls=edges, nodeToCoordinate=nodeToCoordinate,scales=False,trail=edgesC1,prefix="NLandZI1comp")
 
                 print(f"one cut edge separating hallways in {getBuildings(c0, nodeToCoordinate)} \n from hallways in {getBuildings(c1, nodeToCoordinate)}")
                 # Now find the longest trail in c0, called Tc0, in c1, called Tc1
@@ -954,20 +1574,24 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                 assert len(ends) in [0,1,2] # Since the only options are for a component to have a mandatory start, end, both or none
                 if len(ends)==0: #meaning no restrictions on where to start or end
                     print(f"in reduce Graph bridges, we are free to find a longest trail anywhere in this component with c0:nvertices:{len(c0)}nedges:{len(edgesC0)} and then c1:nvertices:{len(c1)} nedges:{len(edgesC1)}.In total {max(list(neighbours.keys()))+1} vertices and {len(edges)} edges")
+                    print(f"1-cut 0 ends, staying in c0. Calling redgb for c0:{buildings0}, and no ends param specified")
                     Tc0, LTc0, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder, specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c0
                     print(f"length Tc0: {LTc0}")
+                    print(f"1-cut 0ends staying in c1. Calling redgb for c1:{buildings1}, and no ends param specified")
                     Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices) # longest trail in c1
                     print(f"length Tc1: {LTc1}")
                     # print(f"ends will be v0:{v0}")
+                    print(f"1-cut 0ends taking v, c0v0. Calling redgb on c0:{buildings0} ending in v0:{v0}")
                     Tv0, LTv0, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v0]) # longest trail in c0 that starts or ends in v0
                     print(f"length in c0 starting from v0: {LTv0}")
                     # print(f"ends will be v1:{v1}")
+                    print(f"1-cut 0 ends taking v, part c1v1. Calling redgb on c1:{buildings1}, ends:v1{v1} ")
                     Tv1, LTv1, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1, specialEdges=specialEdges,
                            figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
                                maxtime=maxtime, maxgap=None, printtime=5, elevatorVertices=elevatorVertices, ends=[v1]) # longest trail in c1 that starts or ends in v1
@@ -986,60 +1610,20 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                     else:
                         # Construct the combined trail, starting in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1
                         # check the order of the edges in Tv0,
-                        print(f"edgesTv0:{Tv0}")
-                        if v0 in Tv0[0]:
-                            print(f"Reverse the order of the list Tv0")
-                            Tv0.reverse()
-                        elif v0 in Tv0[-1]:
-                            print(f"the edges are in the correct order Tv0")
+                        Tv0=swapTrailIfNeeded(v0, Tv0)
 
-                        else:
-                            print(f"ERRORRR the vertex v0 is neither in the start nor end edge of the trail in Tv0??")
                         # check the order of the edges in Tv1,
-                        print(f"edges tv1: {Tv1}")
-                        if v1 in Tv1[0]:  # meaning that the edges are already in the correct order
-                            print(f"order Tv1 correct")
-                        elif v1 in Tv1[-1]:
-                            print(f"we have to reverse the order of the edges in Tv1")
-                            # reverse the order of the list
-                            Tv1.reverse()
-                            print(f"type of Tv1 reversed:{type(Tv1)},{Tv1}")
-                        else:
-                            print(f"ERRORRR the vertex v1 is neither in the start nor end edge of the trail in Tv1??")
+                        Tv1=swapTrailIfNeeded(v1, Tv1)
 
                         Tc0c1 = Tv0 + [(v0, v1)] + Tv1
                         trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
                         return Tc0c1, LTc0c1, trailsComponents
 
-
-
                     print(f"as we had")
                 elif len(ends)==1: #meaning we have 1 mandatory vertex to visit in a longest trail in this component.
                     print(f"in reduce graph bridges we must find a trail that starts or ends in{ends[0]}.")
                     # We have two possible trails to find, one staying in component 0, starting in ends[0], or the longest trail that starts in end[0], and goes through both components by means of taking the cutedge
-                    if ends[0] in c0: #meaning we take the longest trail in c0 starting at ends[0] to anywhere in c0
-                        #and also find the longest trail in c0 that starts and ends in ends[0], v0.
-                        # also find the longest trail in c1 that starts in v1 and ends anywhere in c1.
-                        print(f"we're good to go")
-                    else:
-                        print(f"we have to swap c0 and c1 in order to have end[0] in the same component as c0")
-                        tempedges= edgesC0
-                        edgesC0= edgesC1
-                        edgesC1= tempedges
-
-                        tempvertices= c0
-                        c0=c1
-                        c1=tempvertices
-
-                        tempv= v0
-                        v0=v1
-                        v1=tempv
-
-                        tempbuilding= building0
-                        building0= building1
-                        building1= tempbuilding
-
-
+                    print(f"1-cut 1-end staying in c0. Calling redgb on c0:{buildings0}, ends:{ends}")
                     Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
@@ -1047,7 +1631,7 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                                                         maxtime=maxtime, maxgap=None, printtime=5,
                                                         elevatorVertices=elevatorVertices,
                                                         ends=ends)  # longest trail in c1 that starts or ends in v1
-                    # print(f"ends will be [ends[0],v0]:{[ends[0],v0]}")
+                    print(f"1-cut 1 end, taking v, part c0v0. Calling redgb on c0 {buildings0}, and ends:{[ends[0],v0]}")
                     Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
@@ -1056,6 +1640,7 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                                                         elevatorVertices=elevatorVertices,
                                                         ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                     # print(f"ends will be v1:{v1}")
+                    print(f"1-cut 1 end taking v part c1v1. Calling redgb on c1:{buildings1}, ends v1:{v1}")
                     Tv1, LTv1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                         specialEdges=specialEdges,
                                                         figuresResultBuildings=figuresResultBuildings, vdummy=vdummy,
@@ -1067,46 +1652,27 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
 
                     T = max(LTc0, LTc0c1)
                     if T == LTc0:
-                        if ends[0] in Tc0v0[0]:
-                            print(f"the edges are in the correct order")
-                            # Tc0 = edgesTc0
-                        elif ends[0] in Tc0[-1]:
-                            # Reverse the order of the list
-                            Tc0.reverse()
-                        else:
-                            print(f"ERRORRR the vertex end0 is neither in the start nor end edge of the trail in Tc0??")
-                        # check the order of the edges in Tv1,
+                        Tc0=swapTrailIfNeeded(ends[0], Tc0)
                         trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
                         return Tc0, LTc0, trailsComponents
-                    else:
 
+                    else:
                         # Construct the combined trail, starting in end[0] in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1
                         # check the order of the edges in Tv0,
-                        if ends[0] in Tc0v0[0]:
-                            print(f"the edges are in the correct order")
-                        elif ends[0] in Tc0v0[-1]:
-                            # Reverse the order of the list
-                            Tc0v0.reverse()
-                        else:
-                            print(f"ERRORRR the vertex v0 is neither in the start nor end edge of the trail in Tv0??")
-                        # check the order of the edges in Tv1,
+                        Tc0v0=swapTrailIfNeeded(ends[0], Tc0v0)
 
-                        if v1 in Tv1[0]:  # meaning that the edges are already in the correct order
-                            print(f'the edges are in correct order')
-                        elif v1 in Tv1[-1]:
-                            # reverse the order of the list
-                            Tv1.reverse()
-                        else:
-                            print(f"ERRORRR the vertex v1 is neither in the start nor end edge of the trail in Tv1??")
+                        # check the order of the edges in Tv1,
+                        Tv1=swapTrailIfNeeded(v1, Tv1)
 
                         Tc0c1 = Tc0v0 + [(v0,v1)] + Tv1
                         trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
                         return Tc0c1, LTc0c1, trailsComponents
+
                 else: #we have a mandatory start and a mandatory end, so two options, they either are in the same component or not
                     print(f"in reduce graph bridges we must find a trail that starts and ends in{ends}.")
 
-                    if ends[0] in c0 and ends[1] in c0:
-                        print(f"we only have to find a longest trail in c0 with ends {ends}")
+                    if ends[1] in c0:
+                        print(f"we only have to find a longest trail in c0 since both ends lay here:{buildings0} with ends {ends}. so redgb is called on this")
                         # print(f"ends was:{ends} and will be the same: {ends}")
                         Tc0, LTc0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                 specialEdges=specialEdges,
@@ -1116,58 +1682,34 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                                                                 maxtime=maxtime, maxgap=None, printtime=5,
                                                                 elevatorVertices=elevatorVertices,
                                                                 ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
-                        if ends[0] in Tc0[0]:#they are in the correct order
-                            print(f"edges are in correct order")
-                        elif ends[0] in Tc0[-1]: #they are in reverse order
-                            Tc0.reverse()
-                        else:
-                            print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc0??")
+                        Tc0=swapTrailIfNeeded(ends[0], Tc0)
+
                         trailsComponents[componentkey] = {'trail': Tc0, 'length': LTc0}
                         return Tc0, LTc0, trailsComponents
 
-                    elif ends[0] in c1 and ends[1] in c1:
-                        print(f"we only have to find a longest trail in c1 with ends {ends}")
-                        Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
-                                                            specialEdges=specialEdges,
-                                                            figuresResultBuildings=figuresResultBuildings,
-                                                            elevatorEdges=elevatorEdges,
-                                                            nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
-                                                            maxtime=maxtime, maxgap=None, printtime=5,
-                                                            elevatorVertices=elevatorVertices,
-                                                            ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
-                        if ends[0] in Tc1[0]:  # they are in the correct order
-                            print(f"edges are in correct order")
-                        elif ends[0] in Tc1[-1]:  # they are in reverse order
-                            Tc1.reverse()
-                        else:
-                            print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc1??")
-                        trailsComponents[componentkey] = {'trail': Tc1, 'length': LTc1}
-                        return Tc1, LTc1, trailsComponents
+                    # elif ends[0] in c1 and ends[1] in c1:
+                    #     print(f"we only have to find a longest trail in c1 with ends {ends}")
+                    #     Tc1, LTc1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
+                    #                                         specialEdges=specialEdges,
+                    #                                         figuresResultBuildings=figuresResultBuildings,
+                    #                                         elevatorEdges=elevatorEdges,
+                    #                                         nodeToCoordinate=nodeToCoordinate, vdummy=vdummy,
+                    #                                         maxtime=maxtime, maxgap=None, printtime=5,
+                    #                                         elevatorVertices=elevatorVertices,
+                    #                                         ends=ends)  # longest trail in c0 that starts and ends in vertices in ends
+                    #     if ends[0] in Tc1[0]:  # they are in the correct order
+                    #         print(f"edges are in correct order")
+                    #     elif ends[0] in Tc1[-1]:  # they are in reverse order
+                    #         Tc1.reverse()
+                    #     else:
+                    #         print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc1??")
+                    #     trailsComponents[componentkey] = {'trail': Tc1, 'length': LTc1}
+                    #     return Tc1, LTc1, trailsComponents
                     else:
-                        print(f"They are in a different component, so we must find a trail from ends[0] to v0 to v1 to ends[0], if ends[0] in c0")
-                        if ends[0] in c0:  # meaning we take the longest trail in c0 starting at ends[0] to anywhere in c0
-                            # and also find the longest trail in c0 that starts and ends in ends[0], v0.
-                            # also find the longest trail in c1 that starts in v1 and ends anywhere in c1.
-                            print(f"we're good to go")
-                        else:
-                            print(f"we have to swap c0 and c1 in order to have end[0] in the same component as c0")
-                            tempedges = edgesC0
-                            edgesC0 = edgesC1
-                            edgesC1 = tempedges
-
-                            tempvertices = c0
-                            c0 = c1
-                            c1 = tempvertices
-
-                            tempv = v0
-                            v0 = v1
-                            v1 = tempv
-
-                            tempbuilding = building0
-                            building0 = building1
-                            building1 = tempbuilding
+                        print(f"They are in a different component, so we must find a trail from ends[0] to v0 to v1 to ends[1]")
                         #Now find a longest trail in co from ends0 to v0 and a longest trail in c1 from v1 to ends1
                         # print(f"ends will be: [ends[0],v0]: {[ends[0],v0]}")
+                        print(f"1-cut 2 ends taking v, part c0v0. Calling redgb on building{buildings0}, and ends v0:{[ends[0],v0]}")
                         Tc0v0, LTc0v0, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC0,
                                                                 specialEdges=specialEdges,
                                                                 figuresResultBuildings=figuresResultBuildings,
@@ -1177,6 +1719,7 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                                                                 elevatorVertices=elevatorVertices,
                                                                 ends=[ends[0],v0])  # longest trail in c0 that starts or ends in v0
                         # print(f"ends will be: [v1,ends[1]]: {[v1,ends[1]]}")
+                        print(f"1-cut 2 end diff comp taking v, part c1v1. Calling redgb on c1:{buildings1}, and ends:{[v1,ends[1]]}")
                         Tc1v1, LTc1v1, trailsComponents = reduceGraphBridges(trailsComponents=trailsComponents ,logfolder=logfolder, resultfolder=resultfolder,specialPaths=specialPaths, edges=edgesC1,
                                                                 specialEdges=specialEdges,
                                                                 figuresResultBuildings=figuresResultBuildings,
@@ -1188,22 +1731,10 @@ def reduceGraphBridges(trailsComponents ,specialPaths, logfolder, resultfolder, 
                         LTc0c1= LTc0v0 + edges[cut] + LTc1v1
                         # Construct the combined trail, starting in ends[0] in c0, going to v0, then walk the edge to v1, and walk a longest trail in c1 to ends1
                         # check the order of the edges in Tv0,
-                        if ends[0] in Tc0v0[0]:
-                            print(f"the edges are in the correct order")
-                        elif ends[0] in Tc0v0[-1]:
-                            # Reverse the order of the list
-                            Tc0v0.reverse()
-                        else:
-                            print(f"ERRORRR the vertex ends0 is neither in the start nor end edge of the trail in Tc0v0??")
-                        # check the order of the edges in Tv1,
+                        Tc0v0=swapTrailIfNeeded(ends[0], Tc0v0)
 
-                        if v1 in Tc1v1[0]:  # meaning that the edges are already in the correct order
-                            print(f"edges are in correct order")
-                        elif v1 in Tc1v1[-1]:
-                            # reverse the order of the list
-                            Tc1v1.reverse()
-                        else:
-                            print(f"ERRORRR the vertex ends1 is neither in the start nor end edge of the trail in Tc1v1??")
+                        # check the order of the edges in Tv1,
+                        Tc1v1= swapTrailIfNeeded(v1, Tc1v1)
 
                         Tc0c1 = Tc0v0 + [(v0, v1)] + Tc1v1
                         trailsComponents[componentkey] = {'trail': Tc0c1, 'length': LTc0c1}
@@ -1355,6 +1886,7 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
 
                         hallways[(snode, enode)] = edgeweight
 
+    print(f"We extracted special paths{specialPaths} from the floor plans")
 
     # Define a dictionary where each vertex maps to a set of its neighbours
     neighboursold = getNeighbourhood(hallways.keys())
@@ -1404,6 +1936,7 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
             # otherSide = pathname[3:5]+pathname[2]+pathname[0:2]+pathname[5:]
             print(f"connection building from CR:{pathname} but we deal with this when we find the other end this bridge is connected to.")
         elif pathname[2] == "C":
+            print(f"CONNECTION TO A WALKING BRIDGE:name: {pathname}")
             buildingOfEdge= pathname[0:2]
             buildingToEdge= pathname[5:7]
             connection= pathname[2:5]
@@ -1428,15 +1961,15 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
                         connected.append(bridgeName)
                         connected.append(otherSide)
                     else:
-                        print(f"the other building is not drawn into so we cannot connect the walking bridge for which we overdid the naming on the other end")
+                        print(f"the other building for Connection to BRIDGE:name: {pathname} is not drawn into so we cannot connect the walking bridge for which we overdid the naming on the other end")
                 else:
-                    print(f"overdid the naming, but already connected this hallway, so just continue")
+                    print(f"overdid the naming, but already connected this hallway:{pathname}, so just continue")
             elif pathname not in connected:
-                print(f"We did not connect this endpoint yet")
+                print(f"We did not connect this endpoint:{pathname} yet")
                 #Check if the bridge is drawn into the other buildings floorplan
                 if otherBridgeName in specialPaths.keys():
 
-                    print(f"The bridge is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
+                    print(f"The bridge {otherBridgeName} is drawn fully on the floorplan of the other building, so we just connect those two ends with an edge of weight zero")
                     #We find the end of edge pathname and of edge otherBridgeName and connect them with an edge of weight zero
                     end1= findSingleEnd(pathname, neighboursold, specialPaths)
                     end2= findSingleEnd(otherBridgeName, neighboursold, specialPaths)
@@ -1447,6 +1980,7 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
                     connected.append(otherBridgeName)
                     #to be sure also append the other side of this connection (for if I overdid the naming of the drawn in edges)
                     connected.append(otherSide)
+                    print(f"those two ends are:{end1}, {end2}")
                 elif otherSide not in specialPaths:
                     print(f"we have not yet drawn in the floorplans of the other building so we cannot connect edge: {pathname}")
                 else:
@@ -1467,7 +2001,7 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
                     connected.append(pathname)
                     connected.append(otherSide)
             else:
-                print(f"We already connected this bridge.")
+                print(f"We already connected this bridge {pathname} leads to.")
 
         elif pathname[2]=='X':
             print(f"we have an exit to outdoors: {pathname}")
@@ -1476,5 +2010,6 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
 
     specialPaths.update(addedBridges)
     vdummy= max(list(neighbours.keys()))+1
+    print(f"all bridges that we added:{addedBridges}")
     return figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours
 

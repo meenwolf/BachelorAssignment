@@ -1,3 +1,5 @@
+import os
+
 from allFunctions import *
 
 if __name__ == "__main__":
@@ -22,10 +24,10 @@ if __name__ == "__main__":
     datenew = date.replace(':', '-')
     logfile = "\\log" + datenew + ".log"
 
-    ### For a longest trail though RA floor 1 and 2, for the poster:
+
+# For a longest trail though RA floor 1 and 2, for the poster:
     # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","CITADEL","ZILVER","CARRE","WAAIER","NANO"], floorsToSkip=['0','3','4','5','6'])
     # titleplot = "The bounds on the length of a longest trail in Ravelijn floor 1 and 2,<br> at each moment in time when running the gurobi solver for 15 seconds."
-    # #
     # boundplotname = f'RA{datenew}.html'
     # trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
     #                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
@@ -41,32 +43,19 @@ if __name__ == "__main__":
     #
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
-    # For the longest trail through CI to CR 90 and testing 270 seconds per component. They gave the same result
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
 
-    existingvertices = set()
-    for v0, v1 in hallways:
-        existingvertices.add(v0)
-        existingvertices.add(v1)
-    buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+# For the longest trail through CI to CR 90 and testing 270 seconds per component. They gave the same result
+    # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","WAAIER","NANO"], floorsToSkip=[])
+    # trailsComponents=dict() # to save the longest found trail for a component in
+    # trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+    #                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
+    #                        maxtime=270, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+    #                        # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)    #
+    # exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
+    #                 prefix="CItoCR270sec")
 
-    print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
-    trailsComponents=dict() # to save the longest found trail for a component in
-    trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
-                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=270, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
-                           # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
-    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
 
-    exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trail,
-                    prefix="CItoCR270sec")
-    visitedvertices = set()
-    for v0, v1 in trail:
-        visitedvertices.add(v0)
-        visitedvertices.add(v1)
-    buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
-    print(f"and goes through: {buildingsvisited}")
-    # Extract information back from the json for trail CI to CR
+# Extract information back from the json for trail CI to CR
     # PATHd = PATH + "\\dataruns\\log2025-01-22 17-41-44.log"
     # PATH_data= os.path.join(PATHd,"CItoCRtestruntrail.json")
     # PATH_lengths= os.path.join(PATHd,"CItoCRtestrunweigthedEdges.json")
@@ -95,23 +84,106 @@ if __name__ == "__main__":
     # print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
 
 
-    # Bounds on Ravelijn entire building running for the night
+# Bounds on Ravelijn entire building running for the night
     # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST","CITADEL","ZILVER","CARRE","WAAIER","NANO"], floorsToSkip=[])
-    #
     # titleplot = "The bounds on the length of a longest trail in Ravelijn,<br> at each moment in time when running the gurobi solver for 8 hours."
     # boundplotname = f'RAnight{datenew}.html'
-    #
     # trail, length= reduceGraphBridges(specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
     #                    figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
     #                        maxtime=28800, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
     #                        # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
-    #
     # plotBounds(logfolder=PATH_logs, logfile=logfile, title=titleplot, savename=boundplotname)
 
-    # Code to check what the total length of all the hallways in CI, RA, ZI and CR is:
+
+# Code to check what the total length of all the hallways in CI, RA, ZI and CR is:
     # figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["NANO","WAAIER","HORST"], floorsToSkip=[])
     # totalLength= sum(hallways.values())
     # print(f"total length of hallways in CI, RA, ZI, CR: {totalLength} meters")
+
+
+# Code to check position of buildings
+    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST"], floorsToSkip=[])
+    existingvertices = set()
+    for v0, v1 in hallways:
+        existingvertices.add(v0)
+        existingvertices.add(v1)
+    buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
+
+    print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
+    exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=[],
+                    prefix="all30Ssec")
+    trailsComponents=dict() # to save the longest found trail for a component in
+    trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+                       figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
+                           maxtime=30, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
+    trailresult=  constructTrailCheckComponents(trail, vdummy)
+    print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trailresult}")
+
+    exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trailresult,
+                    prefix="all30sec")
+    visitedvertices = set()
+    for v0, v1 in trail:
+        visitedvertices.add(v0)
+        visitedvertices.add(v1)
+    buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
+    print(f"and goes through: {buildingsvisited}")
+    # print(f"save the edges of the {len(list(trailsComponents.keys()))} components")
+    # for key, value in trailsComponents.items():
+    #     visited = []
+    #     currentBuilding = ''
+    #     trail= constructTrailCheckComponents(value['trail'], vdummy)
+    #     if type(key[-1])== tuple: #meaning no ends for this component
+    #         buildingsvisited= getBuildings(getNeighbourhood(list(key)), nodeToCoordinate)
+    #         print(f"for the component of {len(key)} edges in buildings: {buildingsvisited}\n with no mandatory ends")
+    #         endvertices=""
+    #         edges=key
+    #     elif type(key[-2])== tuple: # we have one mandatory end
+    #         buildingsvisited = getBuildings(getNeighbourhood(list(key[:-1])), nodeToCoordinate)
+    #         print(f"for the component of {len(key)-1} edges in buildings: {buildingsvisited}\n with 1 mandatory end {key[-1]}")
+    #         endvertices=f"{key[-1]}"
+    #         edges=key[:-1]
+    #     else: # we have 2 mandatory ends
+    #         buildingsvisited = getBuildings(getNeighbourhood(list(key[:-2])), nodeToCoordinate)
+    #         print(f"for the component of {len(key)-2} edges in buildings: {buildingsvisited}\n with 2 mandatory ends: {key[-2:]}")
+    #         endvertices=f"{key[-2]} {key[-1]}"
+    #         edges=key[:-2]
+    #
+    #     todraw=[]
+    #     for edge in edges:
+    #         if edge in hallways:
+    #             todraw.append({"key": edge, "value": hallways[edge]})
+    #         elif (edge[1], edge[0]) in hallways:
+    #             todraw.append({"key": edge, "value": hallways[(edge[1], edge[0])]})
+    #
+    #
+    #     pathcases=PATH_logs+f"\\componentscheck\\{datenew}"
+    #     if not os.path.exists(pathcases):
+    #         os.makedirs(pathcases)
+    #
+    #     prefix=""
+    #     for building in buildingsvisited.keys():
+    #         if "NANO" in building:
+    #             prefix+="NL "
+    #         elif "CARRE" in building:
+    #             prefix+="CR "
+    #         else:
+    #             prefix+=f"{building[:2]} "
+    #     prefix+=f"{endvertices} and {len(edges)} edges"
+    #
+    #     with open(os.path.join(pathcases,  prefix +".json"), "w") as outfile:
+    #         json.dump(todraw, outfile)
+        #     if edge[0] in nodeToCoordinate:
+        #         building, floor= getBuildingFloor(edge[0],nodeToCoordinate)
+        #         if building != currentBuilding:
+        #             visited.append(building)
+        #             currentBuilding=building
+        #     if edge[1] in nodeToCoordinate:
+        #         building, floor= getBuildingFloor(edge[1],nodeToCoordinate)
+        #         if building != currentBuilding:
+        #             visited.append(building)
+        #             currentBuilding=building
+        # print(f"the {value['length']} meter long trail visits these buildings in order: \n{visited}")
 
 # Code for sanity check on new cases
 
