@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
 
 # Code to check position of buildings
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=["HORST"], floorsToSkip=[])
+    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=[], floorsToSkip=[])
     existingvertices = set()
     for v0, v1 in hallways:
         existingvertices.add(v0)
@@ -110,24 +110,74 @@ if __name__ == "__main__":
     buildingsvisited = getBuildings(existingvertices, nodeToCoordinate)
 
     print(f"We have {len(list(existingvertices))} nodes, in: {buildingsvisited}")
+    # exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=[],
+    #                 prefix="all30Ssec")
+    print(f"we have {vdummy} vertices, and get reachable for vertex 0:{len(getReachable(neighbours, 0))}")
+    # reachablefromzero= getReachable(neighbours, 0)
+    # notReachable=[key for key in neighbours.keys() if key not in reachablefromzero]
+    # edgesDisconnected= getEdgesComponent(hallways, notReachable)
+    #
+    # for vertex in notReachable:
+    #     print(f"vertex:{vertex}, with neighbours:{neighbours[vertex]} are not reachable from zero")
+    #
+    #     for edge,info in specialEdges.items():
+    #         if vertex in edge:
+    #             print(f"edge {edge} is {info}")
+    #             break
+    #
+    #     if vertex in nodeToCoordinate:
+    #         print(f"nodeToCoordinate: {nodeToCoordinate[vertex]}")
+    #     elif vertex in elevatorVertices.keys():
+    #         print(f"its an elevator vertex:{[key for key,value in elevatorVertices.items() if value == vertex]}")
+    #     else:
+    #         print(f"this vertex {vertex} is not an elevator vertex{elevatorVertices} nor a regular vertex")
+    #
+    # print(f"elevator edges:{elevatorEdges}\n elevator vertices:{elevatorVertices}")
+    # print(f"SpecialPaths:{specialPaths}")
+    # velev= elevatorVertices["HCE01"]
+    # connectedelev=[edge for edge in hallways if velev in edge]
+    # vbasement=[]
+    # for vertex in neighbours.keys():
+    #     if vertex in nodeToCoordinate:
+    #         building, floor = getBuildingFloor(vertex, nodeToCoordinate)
+    #         if "HORST" in building:
+    #             if floor =="0":
+    #                 vbasement.append(vertex)
+    # print(f"vertices basement:{vbasement}")
+    # edgesbasement=getEdgesComponent(hallways, vbasement)
+    # print(f"edges basement:{edgesbasement}")
+    # exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales,
+    #                 trail=edgesbasement, prefix="basementHC")
+    # for edge in connectedelev:
+    #     if edge[0] == velev:
+    #         vertex=edge[1]
+    #     else:
+    #         vertex=edge[0]
+    #     if vertex in nodeToCoordinate:
+    #         print(f"vertex:{vertex}, with info:{nodeToCoordinate[vertex]}")
+    #     else:
+    #         print(f"vertex:{vertex}, not in nodetocoordinate")
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=[],
-                    prefix="all30Ssec")
+                    prefix="try120sec")
+
     trailsComponents=dict() # to save the longest found trail for a component in
     trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=30, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           maxtime=120, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     trailresult=  constructTrailCheckComponents(trail, vdummy)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trailresult}")
 
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trailresult,
-                    prefix="all30sec")
+                    prefix="try120sec")
     visitedvertices = set()
     for v0, v1 in trail:
         visitedvertices.add(v0)
         visitedvertices.add(v1)
     buildingsvisited = getBuildings(visitedvertices, nodeToCoordinate)
     print(f"and goes through: {buildingsvisited}")
+
+
     # print(f"save the edges of the {len(list(trailsComponents.keys()))} components")
     # for key, value in trailsComponents.items():
     #     visited = []
