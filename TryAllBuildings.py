@@ -15,7 +15,7 @@ if __name__ == "__main__":
     if not os.path.exists(PATH_logs):
         os.mkdir(PATH_logs)
 
-    # Measured, but made up for now, bridge lengths:
+    # # Measured, but made up for now, bridge lengths:
     bridgeLengths = {"C01CRWA": 12.5, "C01WACR": 12.5, "C01CRNL": 13, "C01NLCR": 13, "C01CRWH": 10, "C01WHCR": 10,
                      "C01CIRA": 8, "C01RACI": 8,
                      "C01ZHNL": 16.5, "C01NLZH": 16.5, "C01RAZI": 13, "C01ZIRA": 13, }
@@ -56,32 +56,85 @@ if __name__ == "__main__":
 
 
 # Extract information back from the json for trail CI to CR
-    # PATHd = PATH + "\\dataruns\\log2025-01-22 17-41-44.log"
-    # PATH_data= os.path.join(PATHd,"CItoCRtestruntrail.json")
-    # PATH_lengths= os.path.join(PATHd,"CItoCRtestrunweigthedEdges.json")
-    # with open(PATH_lengths, 'r') as f:
-    #     halls = json.load(f)
-    # hallways=dict()
-    # for hall in halls:
-    #     hallways[(hall['key'][0],hall['key'][1])]= hall['value']
-    #
-    # with open(PATH_data, 'r') as f:
-    #     data = json.load(f)
-    # trail = []
-    # length = 0
-    # print(data)
-    # for hall in data:
-    #     edge=(hall['key'][0], hall['key'][1])
-    #     edgerev= (hall['key'][1], hall['key'][0])
-    #     trail.append((hall['key'][0], hall['key'][1]))
-    #     if edge in hallways:
-    #         length += hallways[(hall['key'][0], hall['key'][1])]
-    #     elif edgerev in hallways:
-    #         length += hallways[edgerev]
-    #     else:
-    #         print(f"LENGTH OF EDGE:{edge} unknown, since it is not in the hallways dict")
-
-    # print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trail}")
+#     "C:\Users\meenw\OneDrive - University of Twente\Bureaublad\backup\AM\Year 3\Bachelor assignment\TestMoreBuildings\Logs\
+#     "C:\Users\meenw\OneDrive - University of Twente\Bureaublad\backup\AM\Year 3\Bachelor assignment\
+#     PATHtrail = PATH_logs + "\\componentscheck\\2025-01-26 21-11-26\\HO [729, 931] and 680 edges.json"
+#     PATH_lengths= PATH+"dataruns\\log2025-01-26 21-33-49.log\\try90sec3cutweigthedEdges.json"
+#     # PATH_lengths= os.path.join(PATH,"CItoCRtestrunweigthedEdges.json")
+#     with open(PATH_lengths, 'r') as f:
+#         halls = json.load(f)
+#     hallways=dict()
+#     for hall in halls:
+#         hallways[(hall['key'][0],hall['key'][1])]= hall['value']
+#
+#     with open(PATHtrail, 'r') as f:
+#         data = json.load(f)
+#     comp = dict()
+#     length = 0
+#     print(data)
+#     for hall in data:
+#         edge=(hall['key'][0], hall['key'][1])
+#         edgerev= (hall['key'][1], hall['key'][0])
+#         # comp.append((hall['key'][0], hall['key'][1]))
+#         if edge in hallways:
+#             length = hallways[edge]
+#             comp[edge]=length
+#         elif edgerev in hallways:
+#             length = hallways[edgerev]
+#             comp[edgerev]=length
+#         else:
+#             print(f"LENGTH OF EDGE:{edge} unknown, since it is not in the hallways dict")
+#
+#     print(f"the component is {length} meters long, visiting {len(comp)}edges\n {comp}")
+#     neighbours=getNeighbourhood(comp)
+#     vdummy=max(neighbours.keys())+1
+#     neighboursnew, edgesnew,vdummy = addDummy(neighbours, comp, vdummy)
+#     model, varshall, varsdegree = runModelends(auxedge=auxedge, ends=ends, logfolder=logfolder, halls=edgesnew,
+#                                                nvdum=vdummy,
+#                                                neighbours=neighboursnew,
+#                                                maxtime=maxtime, maxgap=maxgap, printtime=printtime, log=logfile,
+#                                                elevatorVertices=elevatorVertices)
+#     # lengthLongestTrail = model.getAttr('ObjVal')
+#     # print(f"The longest trail is {lengthLongestTrail} meters long")
+#     try:
+#         used_edges = getEdgesResult(model, varshall)
+#     except:
+#         todraw = []
+#         for edge in edges:
+#             todraw.append({"key": edge, "value": edges[edge]})
+#         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#         datenew = date.replace(':', '-')
+#         pathcases = logfolder + f"\\componentscheck\\{datenew}"
+#         if not os.path.exists(pathcases):
+#             os.makedirs(pathcases)
+#
+#         prefix = ""
+#         for building in buildingsvisited.keys():
+#             if "NANO" in building:
+#                 prefix += "NL "
+#             elif "CARRE" in building:
+#                 prefix += "CR "
+#             else:
+#                 prefix += f"{building[:2]} "
+#         prefix += f"{ends} and {len(edges)} edges"
+#
+#         with open(os.path.join(pathcases, prefix + ".json"), "w") as outfile:
+#             json.dump(todraw, outfile)
+#         return [], 0
+#
+#     # drawEdgesInFloorplans(edges=[edge for edge in used_edges if vdummy not in edge], nodeToCoordinate=nodeToCoordinate, elevatorEdges=elevatorEdges,
+#     #                       specialEdges=specialEdges, figuresResultBuildings=figuresResultBuildings,
+#     #                       resultfolder=PATH_result, prefixfilename='edgesResult')
+#     # print(f"{len(getReachable(getNeighbourhood(used_edges),vdummy))} vertices of the {len(getNeighbourhood(used_edges))} vertices are reachable from vdum{vdummy}")
+#     # print(f"we have {vdummy} as dummy vertex for this component")
+#     # print(f"and the {len(used_edges)} used edges are:{used_edges}")
+#     trailresult = constructTrailCheckComponents(used_edges, vdummy)
+#     lengthtrail = 0
+#     for edge in trailresult:
+#         if edge in edgesnew:
+#             lengthtrail += edgesnew[edge]
+#         else:
+#             lengthtrail += edgesnew[(edge[1], edge[0])]
 
 
 # Bounds on Ravelijn entire building running for the night
@@ -102,7 +155,7 @@ if __name__ == "__main__":
 
 
 # Code to check position of buildings
-    figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=[], floorsToSkip=[])
+    custom3cut, figuresResultBuildings, buildingScales, nodeToCoordinate, specialPaths, specialEdges, hallways, elevatorVertices, elevatorEdges, vdummy, neighbours = getGraph(PATH_drawings=PATH_drawings,PATH_empty=PATH_empty, bridgeLengths=bridgeLengths, buildingsToSkip=[], floorsToSkip=[])
     existingvertices = set()
     for v0, v1 in hallways:
         existingvertices.add(v0)
@@ -158,18 +211,18 @@ if __name__ == "__main__":
     #     else:
     #         print(f"vertex:{vertex}, not in nodetocoordinate")
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=[],
-                    prefix="try120sec")
-
+                    prefix="try300sec3cut")
+    print(f"custom3cut:{custom3cut}")
     trailsComponents=dict() # to save the longest found trail for a component in
-    trail, length, trailsComponents= reduceGraphBridges(trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
+    trail, length, trailsComponents= reduceGraphBridges(custom3cut=custom3cut, trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
-                           maxtime=120, maxgap=None, logfile=logfile, elevatorVertices=elevatorVertices)
+                           maxtime=300, maxgap=5, logfile=logfile, elevatorVertices=elevatorVertices)
                            # prefixdrawcomp='RunRA', plotboundsname=titleplot, showboundplot=True, saveboundplotname=boundplotname)
     trailresult=  constructTrailCheckComponents(trail, vdummy)
     print(f"the longest trail found is {length} meters long, visiting {len(trail)}edges\n {trailresult}")
 
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=trailresult,
-                    prefix="try120sec")
+                    prefix="try300sec3cut")
     visitedvertices = set()
     for v0, v1 in trail:
         visitedvertices.add(v0)
