@@ -40,7 +40,6 @@ With drag one can rotate the viewpoint
 With the mouse wheel one can zoom in and out.
 
 This was a very usefull visualizer tool and all credits for making it go to my boyfriend Pieter de Goeje.
-
-
-When a new version, or other data comes available, I will update this readme, and include a newer version of the longest trail viewer too.
+A 30 second video of the 3D result using this tool for the longest found trail through all the buildings is uploaded in this folder.
+When a new version of the longest trail viewer, or other data comes available, I will update this readme, and include a newer version of the longest trail viewer too.
 
