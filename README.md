@@ -1,5 +1,5 @@
 # BachelorAssignment
-In this read me I will explain the different files in this repo.
+In this read me I will explain the most important different files in this repo.
 
 ## PDFtoPNGConverter.py
 I have received the floorplans of the relevant buildings of the UT as PDFs. I will draw
