@@ -213,7 +213,7 @@ if __name__ == "__main__":
     exportGraphinfo(Path=PATH, halls=hallways, nodeToCoordinate=nodeToCoordinate, scales=buildingScales, trail=[],
                     prefix="try300sec3cut")
     print(f"custom3cut:{custom3cut}")
-    print(f"total sum of all the edges: {sum(hallways.values())}")
+    print(f"Total sum of all the edges: {sum(hallways.values())}")
     trailsComponents=dict() # to save the longest found trail for a component in
     trail, length, trailsComponents= reduceGraphBridges(custom3cut=custom3cut, trailsComponents=trailsComponents ,specialPaths=specialPaths, logfolder=PATH_logs, resultfolder=PATH_result, edges=hallways, specialEdges=specialEdges,
                        figuresResultBuildings=figuresResultBuildings,elevatorEdges=elevatorEdges ,nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, neighbours=neighbours,
