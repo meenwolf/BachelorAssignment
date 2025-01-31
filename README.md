@@ -12,3 +12,14 @@ them.
 ## TrialExtractSVG.py
 To test extracting information from the vector images, which will be saved in another directory at my local
 computer, I have made this file.
+
+The files that work on all the buildings, are:
+## allFunctions.py
+This file contains all the functions that I have made to get to the final result
+
+## TryAllBuildings.py
+This file contains the code that I used to get the final results.
+
+All the other files were in between files, to extend the code for working for one floor, to one building,
+To a few buildings, to all buildings. The allFunctions.py file contains all the functions that are created
+here, but adjusted so that they work for all the buildings.
