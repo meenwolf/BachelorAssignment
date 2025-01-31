@@ -1,17 +1,12 @@
 import os
-from os.path import split
 
-import kaleido
-from holoviews.plotting.bokeh.styles import font_size, validate
 from svgpathtools import svg2paths, svg2paths2, wsvg, Path, Line
-from pprint import pprint
 from gurobipy import *
 import xml.etree.ElementTree as ET
 import numpy as np
 import logging
 from collections import defaultdict
 from itertools import combinations
-import re
 import math
 from copy import deepcopy
 
@@ -19,7 +14,6 @@ import pandas as pd
 import gurobi_logtools as glt
 import plotly.graph_objects as go
 from datetime import datetime
-import sys
 import json
 
 
@@ -465,11 +459,11 @@ def drawEdgesInFloorplans(edges, nodeToCoordinate,elevatorEdges,specialEdges, fi
 
     # Draw the figures in a new file:
     for building, buildinginfo in figuresResultBuildings.items():
-        buildingResultPath= resultfolder+f"\\{building}"
+        buildingResultPath= resultfolder+f"/{building}"
         for floor, floorinfo in buildinginfo.items():
             buildingName, buildingNumber = splitNameNumber(building)
             floortree= floorinfo['tree']
-            testfilename= f"\\{prefixfilename}{buildingNumber}.{floor}.svg"
+            testfilename= f"/{prefixfilename}{buildingNumber}.{floor}.svg"
             floortree.write(buildingResultPath+testfilename)
 
 def plotBounds(logfolder, logfile, title, savename=False):
@@ -488,20 +482,20 @@ def plotBounds(logfolder, logfile, title, savename=False):
     fig.update_layout(title_text=title, font_size=24)
 
     if savename:
-        PATHplot = logfolder + f"\\boundsOverTime"
+        PATHplot = logfolder + f"/boundsOverTime"
         if not os.path.exists(PATHplot):
             os.mkdir(PATHplot)
         print(f"pathplot: {PATHplot}")
-        print(f"file will be saved to :{PATHplot + "\\" + savename}")
-        fig.write_html(PATHplot+"\\"+savename, auto_open=False, validate=False)
+        print(f"file will be saved to :{PATHplot + "/" + savename}")
+        fig.write_html(PATHplot+"/"+savename, auto_open=False, validate=False)
 
 
 def exportGraphinfo(Path, halls, nodeToCoordinate, scales,trail, prefix=""):
     if scales:
-        PATHd = Path + "\\dataruns"
+        PATHd = Path + "/dataruns"
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         datenew = date.replace(':', '-')
-        PATH_data = PATHd+f"\\log" + datenew + ".log"
+        PATH_data = PATHd+f"/log" + datenew + ".log"
     else:
         PATH_data=Path+"visualizeWeirdCases"
 
@@ -557,11 +551,11 @@ def runModelends(logfolder, halls, neighbours,ends=[],auxedge=False,nvdum=None, 
             if ".log" in log:
                 logfile=log
             else:
-                logfile=f"\\{log}.log"
+                logfile=f"/{log}.log"
         else:
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             datenew = date.replace(':', '-')
-            logfile = "\\log" + datenew + ".log"
+            logfile = "/log" + datenew + ".log"
         m.Params.LogFile= logfolder+logfile
     # Variables: the hallway connecting crossing i and j in the tour?
     varssol = m.addVars(halls.keys(), vtype=GRB.BINARY, name='x')
@@ -884,7 +878,7 @@ def findTrailComponent(logfolder, resultfolder, edges, specialEdges, figuresResu
                 todraw.append({"key": edge, "value": edges[edge]})
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             datenew = date.replace(':', '-')
-            pathcases=logfolder+f"\\componentscheck\\{datenew}"
+            pathcases=logfolder+f"/componentscheck/{datenew}"
             if not os.path.exists(pathcases):
                 os.makedirs(pathcases)
 
@@ -2578,14 +2572,14 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
         if any([skipname in building for skipname in buildingsToSkip]):
             continue
 
-        buildingEmpty= PATH_empty+f"\\{building}"
+        buildingEmpty= PATH_empty+f"/{building}"
         listOfFiles = os.listdir(buildingEmpty)
         for file in listOfFiles:
             if file.endswith(".svg"):
                 floor= file.split('.')[1]
                 if floor in floorsToSkip:
                     continue
-                newFigurePath = buildingEmpty + f"\\{file}"
+                newFigurePath = buildingEmpty + f"/{file}"
 
                 tree = ET.parse(newFigurePath)
                 root = tree.getroot()
@@ -2601,7 +2595,7 @@ def getGraph(PATH_drawings, PATH_empty,bridgeLengths, buildingsToSkip, floorsToS
                     figuresResultBuildings[building]={floor: {'tree': tree, 'root': root}}
 
                 #Now start extracting the path information
-                paths, attributes = svg2paths(PATH_drawings + f"\\{building}\\{file}")
+                paths, attributes = svg2paths(PATH_drawings + f"/{building}/{file}")
                 lengthForOneMeter= 1
                 if "RAVELIJN" in building:
                     if floor == '3': # Since the scale was missing, I measured myself what the length of 1 meter would be: 8

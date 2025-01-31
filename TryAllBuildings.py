@@ -1,5 +1,3 @@
-import os
-
 from allFunctions import *
 
 if __name__ == "__main__":
@@ -8,10 +6,10 @@ if __name__ == "__main__":
     dir_path = os.path.dirname(os.path.realpath(__file__))
     PATH= os.path.abspath(os.path.join(dir_path, os.pardir))
 
-    PATH_drawings= PATH +"\\TestMoreBuildings\\OriginalPaths"
-    PATH_empty= PATH+"\\TestMoreBuildings\\EmptyFloorplans"
-    PATH_result= PATH+"\\TestMoreBuildings\\ResultFloorplans"
-    PATH_logs= PATH+"\\TestMoreBuildings\\Logs"
+    PATH_drawings= PATH +"/TestMoreBuildings/OriginalPaths"
+    PATH_empty= PATH+"/TestMoreBuildings/EmptyFloorplans"
+    PATH_result= PATH+"/TestMoreBuildings/ResultFloorplans"
+    PATH_logs= PATH+"/TestMoreBuildings/Logs"
     if not os.path.exists(PATH_logs):
         os.mkdir(PATH_logs)
 
@@ -22,7 +20,7 @@ if __name__ == "__main__":
 
     date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     datenew = date.replace(':', '-')
-    logfile = "\\log" + datenew + ".log"
+    logfile = "/log" + datenew + ".log"
 
 
 # For a longest trail though RA floor 1 and 2, for the poster:
