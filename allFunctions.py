@@ -538,8 +538,11 @@ def runModelends(logfolder, halls, neighbours,ends=[],auxedge=False,nvdum=None, 
 
     # if maxtime != None:
     #     m.Params.TimeLimit = maxtime
-    if {729, 577} == set(ends):
+    if {729, 577} == set(ends): # Otherwise I got a memory error. at 65 seconds.
         m.Params.TimeLimit =60
+    elif maxtime == 7200:
+        print("Set the specific timelimit for a component of horst containing the tower")
+        m.Params.TimeLimit = 5000
     else:
         m.Params.TimeLimit = 300
     m.Params.MIPGap = 0.05
@@ -1216,7 +1219,7 @@ def dealWith3cut(custom3cut, trailsComponents ,specialPaths, logfolder, resultfo
                                      edges=edgesC0, specialEdges=specialEdges,
                                      figuresResultBuildings=figuresResultBuildings,
                                      nodeToCoordinate=nodeToCoordinate, vdummy=vdummy, elevatorEdges=elevatorEdges,
-                                     maxtime=horsttime,
+                                     maxtime=7200,
                                      maxgap=maxgap, printtime=printtime, logfile=logfile,
                                      elevatorVertices=elevatorVertices,
                                      prefixdrawcomp=prefixdrawcomp, plotboundsname=plotboundsname,
