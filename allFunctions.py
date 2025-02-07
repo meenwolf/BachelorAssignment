@@ -539,7 +539,7 @@ def runModelends(logfolder, halls, neighbours,ends=[],auxedge=False,nvdum=None, 
         m.Params.TimeLimit = 5000
     else:
         m.Params.TimeLimit = 300
-    m.Params.MIPGap = 0.05
+    # m.Params.MIPGap = 0.05
 
     # if maxgap!=None:
     #     m.Params.MIPGap= maxgap
